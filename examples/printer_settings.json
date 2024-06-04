@@ -1,0 +1,8 @@
+{
+    "nozzle_jerk_speed": 40.0,
+    "extruder_jerk_speed": 5.0,
+    "nozzle_acceleration": 1200.0,
+    "extruder_acceleration": 1200.0,
+    "bulk_filament_diameter": 1.75,
+    "nozzle_diameter": 0.4
+}

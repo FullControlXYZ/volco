@@ -1,0 +1,7 @@
+version: '3'
+services:
+  volco:
+    build: .
+    command: python volco.py
+    volumes:
+      - .:/usr/src/volco
