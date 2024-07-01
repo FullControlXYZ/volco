@@ -1,7 +1,7 @@
 pre-commit
 pytest
-black==22.3.0
+black>=24.4.2
 numpy==1.24.3
 matplotlib==3.7.1
 trimesh==3.21.7
-scipy=1.10.1
+scipy==1.10.1
