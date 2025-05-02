@@ -11,5 +11,5 @@ class TestPrinter:
         assert printer.extruder_jerk_speed == 5.0
         assert printer.nozzle_acceleration == 1200.0
         assert printer.extruder_acceleration == 1200.0
-        assert printer.bulk_filament_diameter == 1.75
+        assert printer.feedstock_filament_diameter == 1.75
         assert printer.nozzle_diameter == 0.4

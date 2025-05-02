@@ -13,5 +13,5 @@ class Printer:
             self.extruder_jerk_speed = config["extruder_jerk_speed"]
             self.nozzle_acceleration = config["nozzle_acceleration"]
             self.extruder_acceleration = config["extruder_acceleration"]
-            self.bulk_filament_diameter = config["bulk_filament_diameter"]
+            self.feedstock_filament_diameter = config["feedstock_filament_diameter"]
             self.nozzle_diameter = config["nozzle_diameter"]

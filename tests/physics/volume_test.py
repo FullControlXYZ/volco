@@ -35,7 +35,7 @@ class TestVolume:
         volumes = Volume.calculate_volumes_per_step(
             number_simulation_steps=5,
             step_size=20,
-            filament_diameter=1.75,
+            feedstock_filament_diameter=1.75,
             nozzle_profile=nozzle_speed,
             extruder_profile=extruder_speed,
         )

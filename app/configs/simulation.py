@@ -21,3 +21,4 @@ class Simulation:
             self.x_crop = config["x_crop"]
             self.y_crop = config["y_crop"]
             self.z_crop = config["z_crop"]
+            self.consider_acceleration = config.get("consider_acceleration", False)

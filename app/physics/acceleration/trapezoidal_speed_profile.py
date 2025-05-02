@@ -1,4 +1,4 @@
-from app.physics.speed_profile import SpeedProfile
+from app.physics.acceleration.speed_profile import SpeedProfile
 
 import numpy as np
 

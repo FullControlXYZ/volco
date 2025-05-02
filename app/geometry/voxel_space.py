@@ -7,8 +7,6 @@ from app.configs.printer import Printer
 from app.geometry.sphere import Sphere
 from app.instructions.instruction import Instruction
 from app.geometry.geometry_math import GeometryMath
-from app.physics.extruder_speed import ExtruderSpeed
-from app.physics.nozzle_speed import NozzleSpeed
 from app.physics.volume import Volume
 
 
@@ -17,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class VoxelSpace:
     def __init__(
-        self, instruction: Instruction, simulation_config: Simulation, printer: Printer
+        self, instruction: Instruction, simulation_config: Simulation, printer: Printer, consider_acceleration=False
     ):
         coord_limits = instruction.coordinate_limits
 
@@ -47,6 +45,7 @@ class VoxelSpace:
         self._instruction = instruction
         self._simulation = simulation_config
         self._printer = printer
+        self._consider_acceleration = consider_acceleration
 
     def initialize_space(self):
         self.space = np.zeros(
@@ -88,29 +87,13 @@ class VoxelSpace:
                 filament_length
             )
 
-            nozzle_speed = NozzleSpeed(
-                filament_length=filament_length,
-                target_speed=printing_speed,
-                threshold_speed=self._printer.nozzle_jerk_speed,
-                acceleration=self._printer.nozzle_acceleration,
-            )
-            nozzle_speed.calculate_displacements()
-
-            extruder_speed = ExtruderSpeed(
-                volume=volume,
-                threshold_speed=self._printer.extruder_jerk_speed,
-                acceleration=self._printer.extruder_acceleration,
-                total_time=nozzle_speed.total_time,
-                printer=self._printer,
-            )
-            extruder_speed.calculate_displacements()
-
-            volumes = Volume.calculate_volumes_per_step(
+            volumes = Volume.get_volumes_for_filament(
                 number_simulation_steps=number_simulation_steps,
-                step_size=step_size,
-                filament_diameter=self._printer.bulk_filament_diameter,
-                nozzle_profile=nozzle_speed,
-                extruder_profile=extruder_speed,
+                total_volume=volume,
+                consider_acceleration=self._consider_acceleration,
+                filament_length=filament_length,
+                printing_speed=printing_speed,
+                printer=self._printer,
             )
 
             self._deposit_filament(

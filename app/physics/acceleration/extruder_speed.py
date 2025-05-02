@@ -1,6 +1,6 @@
-from app.physics.flat_speed_profile import FlatSpeedProfile
-from app.physics.speed import Speed
-from app.physics.trapezoidal_speed_profile import TrapezoidalSpeedProfile
+from app.physics.acceleration.flat_speed_profile import FlatSpeedProfile
+from app.physics.acceleration.speed import Speed
+from app.physics.acceleration.trapezoidal_speed_profile import TrapezoidalSpeedProfile
 
 import numpy as np
 import math
@@ -9,7 +9,7 @@ import math
 class ExtruderSpeed(Speed):
     def __init__(self, volume, threshold_speed, acceleration, total_time, printer):
         # Convert volume to extrusion length
-        filament_area = math.pi * (printer.bulk_filament_diameter/2)**2
+        filament_area = math.pi * (printer.feedstock_filament_diameter/2)**2
         self._travel_length = volume / filament_area
         
         self._target_speed = None

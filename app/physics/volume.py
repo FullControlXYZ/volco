@@ -1,32 +1,28 @@
-from app.physics.extruder_speed import ExtruderSpeed
-from app.physics.nozzle_speed import NozzleSpeed
-
-import numpy as np
 import math
 
 
 class Volume:
     @staticmethod
-    def calculate_volumes_per_step(
-        number_simulation_steps,
-        step_size,
-        filament_diameter,
-        nozzle_profile: NozzleSpeed,
-        extruder_profile: ExtruderSpeed,
+    def calculate_volumes_incremental(number_simulation_steps, total_volume):
+        """Calculate incremental volumes (each step gets progressively larger)"""
+        volume_per_step = total_volume / number_simulation_steps
+        return [volume_per_step * (i + 1) for i in range(number_simulation_steps)]
+    
+    @staticmethod
+    def get_volumes_for_filament(
+        number_simulation_steps, total_volume, consider_acceleration=False,
+        filament_length=None, printing_speed=None, printer=None,
     ):
-        nozzle_pos = 0.0
-        vol_deposited = list()
-
-        for _ in range(0, number_simulation_steps):
-
-            nozzle_pos += step_size
-
-            disp_e = np.interp(
-                nozzle_pos,
-                nozzle_profile.speed_profile.displacements,
-                extruder_profile.speed_profile.displacements,
+        """Get volumes for a filament segment (handles both acceleration modes)"""
+        if not consider_acceleration:
+            # Simple case: incremental volume distribution
+            return Volume.calculate_volumes_incremental(
+                number_simulation_steps, total_volume
             )
-
-            vol_deposited.append(disp_e * math.pi * filament_diameter**2 / 4)
-
-        return vol_deposited
+        
+        # Complex case: use acceleration-specific implementation
+        from app.physics.acceleration.volume import AccelerationVolume
+        return AccelerationVolume.get_volumes_for_filament(
+            number_simulation_steps, total_volume,
+            filament_length, printing_speed, printer
+        )

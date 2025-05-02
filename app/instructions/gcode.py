@@ -183,7 +183,7 @@ class Gcode(Instruction):
                 coord_old = coord_list[index - 1]  # initial coordinates of the filament
                 
                 # Convert E to volume
-                volume = extru_now * math.pi * (self._printer.bulk_filament_diameter/2)**2
+                volume = extru_now * math.pi * (self._printer.feedstock_filament_diameter/2)**2
 
                 coord_fil.append([coord_old, coord_now, volume])
 

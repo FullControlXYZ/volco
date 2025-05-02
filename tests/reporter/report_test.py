@@ -12,7 +12,7 @@ class FakePrinter:
         self.extruder_jerk_speed = 5.0
         self.nozzle_acceleration = 1200.0
         self.extruder_acceleration = 1200.0
-        self.bulk_filament_diameter = 1.75
+        self.feedstock_filament_diameter = 1.75
         self.nozzle_diameter = 0.4
 
 

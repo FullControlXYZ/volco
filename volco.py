@@ -25,6 +25,7 @@ if __name__ == "__main__":
         instruction=instruction,
         simulation_config=simulation,
         printer=printer,
+        consider_acceleration=simulation.consider_acceleration,
     )
 
     voxel_space.initialize_space()
