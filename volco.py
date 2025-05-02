@@ -13,11 +13,13 @@ logging.basicConfig(format="%(levelname)s %(asctime)s %(message)s", level=loggin
 if __name__ == "__main__":
     options = Arguments.get_options()
 
-    instruction = Gcode(gcode_path=options.gcode, default_nozzle_speed=40.0)
+    printer = Printer(config_path=options.printer)
+    
+    instruction = Gcode(gcode_path=options.gcode, default_nozzle_speed=40.0, printer=printer)
     instruction.read()
+    print(instruction.number_printed_filaments)
 
     simulation = Simulation(config_path=options.sim)
-    printer = Printer(config_path=options.printer)
 
     voxel_space = VoxelSpace(
         instruction=instruction,

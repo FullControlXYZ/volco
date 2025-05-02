@@ -1,4 +1,5 @@
 import logging
+import math
 
 from app.instructions.instruction import Instruction
 
@@ -6,13 +7,14 @@ logger = logging.getLogger(__name__)
 
 
 class Gcode(Instruction):
-    def __init__(self, gcode_path, default_nozzle_speed):
+    def __init__(self, gcode_path, default_nozzle_speed, printer):
         self.gcode_path = gcode_path
         self._movements = list()
         self._coordinate_limits = {}
         self._number_printed_filaments = 0
         self._filaments_coordinates = list()
         self._default_nozzle_speed = default_nozzle_speed
+        self._printer = printer  # Needed for E to volume conversion
 
     @property
     def movements(self):
@@ -179,8 +181,11 @@ class Gcode(Instruction):
                 nfil += 1
 
                 coord_old = coord_list[index - 1]  # initial coordinates of the filament
+                
+                # Convert E to volume
+                volume = extru_now * math.pi * (self._printer.bulk_filament_diameter/2)**2
 
-                coord_fil.append([coord_old, coord_now, extru_now])
+                coord_fil.append([coord_old, coord_now, volume])
 
                 extru_now = 0.0  # reference is set to zero after printing a filament
 

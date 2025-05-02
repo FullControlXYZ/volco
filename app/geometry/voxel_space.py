@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import math
 
 from app.configs.simulation import Simulation
 from app.configs.printer import Printer
@@ -71,7 +72,7 @@ class VoxelSpace:
 
             printing_speed = filament_coordinates[1][4]
 
-            extruded_length = filament_coordinates[2]
+            volume = filament_coordinates[2]  # Now this is volume, not E
 
             number_printed_filaments += 1
 
@@ -96,10 +97,11 @@ class VoxelSpace:
             nozzle_speed.calculate_displacements()
 
             extruder_speed = ExtruderSpeed(
-                extrusion_length=extruded_length,
+                volume=volume,
                 threshold_speed=self._printer.extruder_jerk_speed,
                 acceleration=self._printer.extruder_acceleration,
                 total_time=nozzle_speed.total_time,
+                printer=self._printer,
             )
             extruder_speed.calculate_displacements()
 
