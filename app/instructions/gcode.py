@@ -1,5 +1,6 @@
 import logging
 import math
+import re
 
 from app.instructions.instruction import Instruction
 
@@ -42,6 +43,7 @@ class Gcode(Instruction):
         # Default values
         flag_relative = 0  # G90 -> absolute printing
         e_relative = 0  # M82 -> absolute extrusion
+        unit_mode = 'mm'  # default units ('mm' or 'inches')
 
         # Coord list = [Xabs, Yabs, Zabs, Erelative, Vprint]
         movements = list()
@@ -53,62 +55,120 @@ class Gcode(Instruction):
 
         logger.info("Processing .gcode ...")
 
-        for line in gcode_file:
+        for line_raw in gcode_file:
+            # Strip UTF-8 BOM if present
+            line_raw = line_raw.lstrip('\ufeff')
+            # 1. Strip comments
+            line = line_raw.split(";", 1)[0]
+            # 2. Convert to uppercase
+            line = line.upper()
+            # 3. Strip leading/trailing whitespace
+            line = line.strip()
 
-            # check if the printing speed is changed
-            if line.find("F") >= 0:
-                str_now = line.split("F")
-                str_now = str_now[-1]
+            if not line:  # Skip empty lines or lines that were only comments
+                continue
 
-                flag_speed = -1
-                cont_speed = -1
-                while flag_speed == -1:
-                    cont_speed += 1
+            parts = line.split()
 
+            # 4. Handle line numbers (N codes)
+            if parts[0].startswith('N') and len(parts[0]) > 1 and parts[0][1:].isdigit():
+                parts.pop(0)
+                if not parts:  # Line might have only contained N number
+                    continue
+
+            command = parts[0]
+            params = {}
+            for part in parts[1:]:
+                # 5. Missing numeric value
+                if len(part) == 1 and part[0] in "XYZEF":
+                    logger.warning(
+                        f"Missing numeric value for parameter '{part}' from line: {line_raw.strip()}")
+                    raise ValueError("Please correct gcode format and retry")
+                if len(part) > 1 and part[0] in "GMXYZEF":
+                    val_str = part[1:]
+                    # 6. Malformed number
+                    if not re.match(r'^[-+]?(?:\d+\.?\d*|\.\d+)$', val_str):
+                        logger.warning(
+                            f"Malformed numeric value '{val_str}' in param '{part}' from line: {line_raw.strip()}")
+                        raise ValueError(
+                            "Please correct gcode format and retry")
                     try:
-                        str_i = str_now[cont_speed]
-                        if (
-                            str_i == " "
-                            or str_i == "\n"
-                            or str_i == ";"
-                            or str_i == r"\\"
-                        ):
-                            flag_speed = 1
-                    except:
-                        str_i = "\n"
-                        flag_speed = 1
-                        cont_speed = len(str_now)
+                        params[part[0]] = float(val_str)
+                    except ValueError:
+                        logger.warning(
+                            f"Could not parse parameter value in '{part}' from line: {line_raw.strip()}")
+                        raise ValueError(
+                            "Please correct gcode format and retry")
+                # Silently ignore other parts/parameters we don't understand
 
-                vprint = float(str_now[0:cont_speed]) / 60.0  # transforming to mm/s
+            # Convert coordinates from inches to mm if needed
+            if unit_mode == 'inches':
+                for axis in ("X", "Y", "Z"):
+                    if axis in params:
+                        params[axis] *= 25.4
 
-            if line.find("G90") >= 0:
-                flag_relative = 0  # G90 -> absolute printing
-            elif line.find("G91") >= 0:
-                flag_relative = 1  # G91 -> relative printing
+            # Update feedrate if F parameter exists
+            if "F" in params:
+                vprint = params["F"] / 60.0  # transforming to mm/s
 
-            if line.find("M82") >= 0:
+            # Update positioning modes
+            if command == "G90":
+                flag_relative = 0  # G90 -> absolute positioning
+            elif command == "G91":
+                flag_relative = 1  # G91 -> relative positioning
+            # Units: G20 (inches), G21 (mm)
+            elif command == "G20":
+                unit_mode = 'inches'
+            elif command == "G21":
+                unit_mode = 'mm'
+
+            # Update extrusion modes
+            if command == "M82":
                 e_relative = 0  # M82 -> absolute extrusion
-            elif line.find("M83") >= 0:
+            elif command == "M83":
                 e_relative = 1  # M83 -> relative extrusion
+            # Warn on unsupported M-codes
+            elif command.startswith("M"):
+                logger.warning(
+                    f"Unsupported M-code '{command}' on line: {line_raw.strip()}")
 
-            elif len(line) >= 2:
-                aux_line = line[0:2]  # reads the first 2 characters
+            # Handle position reset (critical for absolute extrusion)
+            if command == "G92":
+                # Handle G92 resets
+                if "E" in params:
+                    if params["E"] == 0.0:
+                        extrusion_old = 0.0
+                        logger.debug("Resetting extrusion reference (G92 E0)")
+                    else:
+                        logger.warning(
+                            f"G92 sets E to non-zero ({params['E']}) on line: {line_raw.strip()} – unexpected extrusion reset")
+                        raise ValueError(
+                            "Please correct gcode format and retry")
+                if any(axis in params for axis in ("X", "Y", "Z")):
+                    axes = [axis for axis in params if axis in "XYZ"]
+                    logger.warning(
+                        f"G92 resets position axes {axes} on line: {line_raw.strip()} – unsupported coordinate reset")
+                    raise ValueError("Please correct gcode format and retry")
 
-                if aux_line == "G1" or aux_line == "G0":  # it means there is movement
+            # Handle movement commands
+            elif command == "G1" or command == "G0":
+                # Check if there's actual movement data
+                if any(axis in params for axis in "XYZE"):
                     coord_new, extrusion_old = self._define_movement(
-                        line,
+                        params,  # Pass parsed parameters
                         movements[-1],
                         flag_relative,
                         e_relative,
                         vprint,
                         extrusion_old,
                     )
-
                     movements.append(coord_new)
 
         gcode_file.close()
 
-        xlim, ylim, zlim, nfil, coord_fil = self._max_min_extru_coordinates(movements)
+        # Ensure coordinate limits calculation happens *after* the loop
+        xlim, ylim, zlim, nfil, coord_fil = self._max_min_extru_coordinates(
+            movements)
 
         logger.info("Done processing .gcode!")
 
@@ -118,37 +178,35 @@ class Gcode(Instruction):
         self._filaments_coordinates = coord_fil
 
     def _define_movement(
-        self, str_move, coord_old, flag_relative, e_relative, vprint, extrusion_old
+        self, params, coord_old, flag_relative, e_relative, vprint, extrusion_old
     ):
-        str_move = str_move.split(" ")
+        # Initialize new coordinates with old ones
+        xnew, ynew, znew = coord_old[0], coord_old[1], coord_old[2]
+        enew = 0.0  # Default to no extrusion for this move
 
-        str_move[-1] = str_move[-1].replace("\n", "")
+        # Update coordinates based on parameters and relative/absolute mode
+        if "X" in params:
+            xnew = params["X"] + flag_relative * coord_old[0]
+        if "Y" in params:
+            ynew = params["Y"] + flag_relative * coord_old[1]
+        if "Z" in params:
+            znew = params["Z"] + flag_relative * coord_old[2]
 
-        xnew, ynew, znew, enew = coord_old[0], coord_old[1], coord_old[2], 0.0
+        # Handle extrusion
+        if "E" in params:
+            enow = params["E"]
+            if e_relative == 0:  # Absolute extrusion
+                enew = enow - extrusion_old  # Calculate relative extrusion for this move
+                extrusion_old = enow  # Update the absolute reference
+            else:  # Relative extrusion
+                enew = enow
+                # extrusion_old doesn't need updating in relative mode, but G92 E0 resets it
 
-        for str_i in str_move:
-            if str_i[0] == "X":  # nozzle moves in the x direction
-                xnew = float(str_i[1::]) + flag_relative * coord_old[0]
-
-            elif str_i[0] == "Y":  # nozzle moves in the y direction
-                ynew = float(str_i[1::]) + flag_relative * coord_old[1]
-
-            elif str_i[0] == "Z":  # nozzle moves in the z direction
-                znew = float(str_i[1::]) + flag_relative * coord_old[2]
-
-            elif str_i[0] == "E":  # transform E in relative coordinates
-                enow = float(str_i[1::])
-
-                if e_relative == 0:  # if it is absolute
-                    enew = enow - extrusion_old
-                    extrusion_old = enow
-                else:
-                    enew = enow
-                    extrusion_old = 0.0
-
+        # Store the calculated movement details
+        # Note: enew here represents the *relative* extrusion for this specific segment
         coord_new = [xnew, ynew, znew, enew, vprint]
 
-        return coord_new, extrusion_old
+        return coord_new, extrusion_old  # Return updated absolute reference for E
 
     """
     This function returns the minimum and maximum printing coordinates;
@@ -172,7 +230,8 @@ class Gcode(Instruction):
 
             coord_now = coord_list[index]
 
-            extru_now += coord_now[3]  # sum the relative extrusion coordinates.
+            # sum the relative extrusion coordinates.
+            extru_now += coord_now[3]
             # this is done in order to account for retractiong movements.
 
             zlist.append(coord_now[2])
@@ -180,10 +239,12 @@ class Gcode(Instruction):
             if extru_now > 0:
                 nfil += 1
 
-                coord_old = coord_list[index - 1]  # initial coordinates of the filament
-                
+                # initial coordinates of the filament
+                coord_old = coord_list[index - 1]
+
                 # Convert E to volume
-                volume = extru_now * math.pi * (self._printer.feedstock_filament_diameter/2)**2
+                volume = extru_now * math.pi * \
+                    (self._printer.feedstock_filament_diameter/2)**2
 
                 coord_fil.append([coord_old, coord_now, volume])
 
