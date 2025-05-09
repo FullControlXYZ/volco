@@ -40,16 +40,17 @@ def run_simulation(
         
     Returns:
     --------
-    tuple
-        (voxel_space, output) - The VoxelSpace and SimulationOutput objects for further use
+    SimulationOutput
+        The simulation output object containing the voxel space and mesh data
         
     Notes:
     ------
     After getting the simulation output object, you can:
-    1. Generate a mesh: mesh = output.generate_mesh()
-    2. Export to STL: output.export_mesh_to_stl(mesh)
-    3. Visualize with trimesh: scene = output.visualize_mesh(mesh)
-    4. Visualize with Plotly: fig = output.visualize_mesh(mesh, visualizer='plotly')
+    1. Export to STL: output.export_mesh_to_stl()
+    2. Visualize with trimesh: scene = output.visualize_mesh()
+    3. Visualize with Plotly: fig = output.visualize_mesh(visualizer='plotly')
+    4. Access the voxel space directly: output.voxel_space
+    
     """
     # Initialize printer configuration
     if printer_config:
@@ -94,13 +95,15 @@ def run_simulation(
     
     # Crop the voxel space
     output.crop_voxel_space()
+
+    output.generate_mesh()
+
     
     # For CLI usage, generate and export STL automatically
     if __name__ == "__main__":
-        mesh = output.generate_mesh()
-        output.export_mesh_to_stl(mesh)
+        output.export_mesh_to_stl()
     
-    return voxel_space, output
+    return output
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ class SimulationOutput:
     - Visualizing the results
     """
     def __init__(self, voxel_space: VoxelSpace, simulation: Simulation):
-        self._voxel_space = voxel_space
+        self.voxel_space = voxel_space
         self._simulation = simulation
         self.cropped_voxel_space = None
         self.mesh = None
@@ -40,12 +40,12 @@ class SimulationOutput:
         ]
 
         filament_translations = [
-            self._voxel_space.filament_translations["x"],
-            self._voxel_space.filament_translations["y"],
+            self.voxel_space.filament_translations["x"],
+            self.voxel_space.filament_translations["y"],
             0.0,
         ]
 
-        axes_length = list(np.shape(self._voxel_space.space))
+        axes_length = list(np.shape(self.voxel_space.space))
 
         indexes_to_crop = list()
 
@@ -57,7 +57,7 @@ class SimulationOutput:
             )
             indexes_to_crop.append(indexes_for_axis)
 
-        cropped_voxel_matrix = self._voxel_space.space.copy()
+        cropped_voxel_matrix = self.voxel_space.space.copy()
         self.cropped_voxel_space = cropped_voxel_matrix[
             indexes_to_crop[0][0] : indexes_to_crop[0][1] + 1,
             indexes_to_crop[1][0] : indexes_to_crop[1][1] + 1,

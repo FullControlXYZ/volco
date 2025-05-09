@@ -46,14 +46,14 @@ def example_1_using_file_paths():
     sim_config_path = 'examples/simulation_settings.json'
     
     # Run the simulation using file paths
-    voxel_space, output = run_simulation(
+    output = run_simulation(
         gcode_path=gcode_path,
         printer_config_path=printer_config_path,
         sim_config_path=sim_config_path
     )
     
-    print(f"Voxel space dimensions: {voxel_space.dimensions}")
-    return voxel_space, output
+    print(f"Voxel space dimensions: {output.voxel_space.dimensions}")
+    return output
 
 
 def example_2_using_python_variables():
@@ -77,14 +77,14 @@ def example_2_using_python_variables():
         sim_config = json.load(f)
     
     # Run the simulation using Python variables
-    voxel_space, output = run_simulation(
+    output = run_simulation(
         gcode=gcode_content,
         printer_config=printer_config,
         sim_config=sim_config
     )
     
-    print(f"Voxel space dimensions: {voxel_space.dimensions}")
-    return voxel_space, output
+    print(f"Voxel space dimensions: {output.voxel_space.dimensions}")
+    return output
 
 
 def example_3_custom_configurations():
@@ -116,27 +116,24 @@ G1 F1000 X14 Y8.0 E0.1
 G1 Z4 E0.2"""
     
     # Run the simulation with custom configurations
-    voxel_space, output = run_simulation(
+    output = run_simulation(
         gcode=gcode_content,
         printer_config=custom_printer_config,
         sim_config=custom_sim_config
     )
     
-    print(f"Voxel space dimensions: {voxel_space.dimensions}")
-    return voxel_space, output
+    print(f"Voxel space dimensions: {output.voxel_space.dimensions}")
+    return output
 
 
 def working_with_simulation_output(output, sim_config):
     """Working with the SimulationOutput object"""
     print("\n=== Working with SimulationOutput ===")
     
-    # Generate the mesh using the mesh module functionality
-    print("Generating mesh...")
-    mesh = output.generate_mesh()
     
     # Export to STL if needed
     print("Exporting mesh to STL...")
-    stl_path = output.export_mesh_to_stl(mesh)
+    stl_path = output.export_mesh_to_stl()
     print(f"STL exported to: {stl_path}")
     
     print("\nDirect access to mesh and visualization modules:")
@@ -153,17 +150,17 @@ def working_with_simulation_output(output, sim_config):
     print("- Creating custom visualization (not displayed)")
     # To display, you would need a GUI environment or Jupyter notebook
     
-    return mesh
+    return 
 
 
 if __name__ == "__main__":
     # Run the examples
-    voxel_space1, output1 = example_1_using_file_paths()
-    voxel_space2, output2 = example_2_using_python_variables()
-    voxel_space3, output3 = example_3_custom_configurations()
+    output1 = example_1_using_file_paths()
+    output2 = example_2_using_python_variables()
+    output3 = example_3_custom_configurations()
     
     # Work with the output from the last example
-    mesh = working_with_simulation_output(output3, custom_sim_config)
+    working_with_simulation_output(output3, custom_sim_config)
     
     print("\nExamples completed successfully!")
     print("Note: To visualize the results, run this code in a Jupyter notebook or GUI environment.")

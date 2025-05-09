@@ -58,6 +58,8 @@ class VoxelSpace:
 
         initial_z_coordinate = 0.0
 
+        print(self._instruction.filaments_coordinates)
+
         for filament_coordinates in self._instruction.filaments_coordinates:
             (
                 initial_coordinate,

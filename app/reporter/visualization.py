@@ -161,31 +161,41 @@ def visualize_with_plotly(mesh):
         intensity = z_mesh
         
         # Create mesh3d visualization
-        fig = go.Figure(data=[
-            go.Mesh3d(
-                x=x_mesh,
-                y=y_mesh,
-                z=z_mesh,
-                i=faces[:, 0],
-                j=faces[:, 1],
-                k=faces[:, 2],
-                opacity=1,
-                # Check if the mesh has vertex colors from color_mesh function
-                vertexcolor=mesh.visual.vertex_colors[:, :3] if hasattr(mesh.visual, 'vertex_colors') and mesh.visual.vertex_colors is not None else None,
-                # Only use colorscale and intensity if vertex colors are not available
-                colorscale=None if hasattr(
-                    mesh.visual, 'vertex_colors') and mesh.visual.vertex_colors is not None else 'viridis',
-                intensity=None if hasattr(mesh.visual, 'vertex_colors') and mesh.visual.vertex_colors is not None else intensity,
-                showscale=False
-            )
-        ])
-        
+        fig = go.Figure([go.Mesh3d(
+            x=verts[:, 0], y=verts[:, 1], z=verts[:, 2],
+            i=faces[:, 0], j=faces[:, 1], k=faces[:, 2],
+            opacity=1,
+            vertexcolor=(mesh.visual.vertex_colors[:, :3]
+                         if hasattr(mesh.visual, 'vertex_colors') else None),
+            colorscale=('viridis'
+                        if not hasattr(mesh.visual, 'vertex_colors') else None),
+            intensity=(verts[:, 2]
+                       if not hasattr(mesh.visual, 'vertex_colors') else None),
+            showscale=False,
+            flatshading=True,
+            lighting=dict(ambient=1, diffuse=0.8, specular=0.2,
+                          roughness=0, fresnel=0.1),
+            lightposition=dict(x=100, y=200, z=0)
+        )])
+
+        common_axes_dict = dict(
+            showbackground=True,
+            backgroundcolor='black',
+            gridcolor='gray',
+            color='white'
+        )
         # Improve layout
         fig.update_layout(
-            scene=dict(
+            paper_bgcolor='black',
+            plot_bgcolor='black',
+            scene=dict(                
                 xaxis_title='X (mm)',
                 yaxis_title='Y (mm)',
                 zaxis_title='Z (mm)',
+                xaxis=common_axes_dict,
+                yaxis=common_axes_dict,
+                zaxis=common_axes_dict,
+                bgcolor='black',
                 aspectmode='data',  # Maintain aspect ratio based on data
                 camera=dict(
                     eye=dict(x=-1.8, y=-1.8, z=1.0),  # Position camera further away for a more zoomed out view
@@ -193,7 +203,8 @@ def visualize_with_plotly(mesh):
                 )
             ),
             width=800,
-            height=800
+            height=400,
+            margin=dict(l=10, r=10, t=10, b=10),
         )
         
         return fig
