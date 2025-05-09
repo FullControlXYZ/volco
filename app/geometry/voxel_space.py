@@ -15,8 +15,7 @@ logger = logging.getLogger(__name__)
 
 class VoxelSpace:
     def __init__(
-        self, instruction: Instruction, simulation_config: Simulation, printer: Printer, consider_acceleration=False
-    ):
+        self, instruction: Instruction, simulation_config: Simulation, printer: Printer):
         coord_limits = instruction.coordinate_limits
 
         [x_min, x_max] = coord_limits["x"]
@@ -45,7 +44,7 @@ class VoxelSpace:
         self._instruction = instruction
         self._simulation = simulation_config
         self._printer = printer
-        self._consider_acceleration = consider_acceleration
+        self._consider_acceleration = self._simulation.consider_acceleration
 
     def initialize_space(self):
         self.space = np.zeros(

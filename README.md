@@ -29,6 +29,66 @@ pip3 install -r requirements.txt
 python volco.py --gcode=examples/gcode_example.gcode --sim=examples/simulation_settings.json --printer=examples/printer_settings.json
 ```
 
+### Using in Jupyter Notebooks
+
+VOLCO can now be used directly in Jupyter notebooks, allowing for more interactive experimentation and visualization:
+
+```python
+from volco import run_simulation
+
+# Run simulation using file paths
+# Note: When running from the examples directory, use '../' prefix for paths
+voxel_space, output = run_simulation(
+    gcode_path='examples/gcode_example.gcode',
+    printer_config_path='examples/printer_settings.json',
+    sim_config_path='examples/simulation_settings.json'
+)
+
+# Or use Python variables instead of file paths
+voxel_space, output = run_simulation(
+    gcode=gcode_content,  # G-code as a string
+    printer_config=printer_config_dict,  # Printer config as a dictionary
+    sim_config=sim_config_dict  # Simulation config as a dictionary
+)
+
+# Working with the output
+mesh = output.generate_mesh()
+output.export_mesh_to_stl(mesh)
+
+# Visualize the mesh (in Jupyter notebooks)
+fig = output.visualize_mesh(mesh, visualizer='trimesh', color_scheme='cyan_blue')
+fig.show()
+```
+
+### Using in Python Scripts
+
+The same functionality available in Jupyter notebooks can be used in regular Python scripts:
+
+```python
+from volco import run_simulation
+
+# Example Python script
+def process_gcode(gcode_file):
+    voxel_space, output = run_simulation(
+        gcode_path=gcode_file,
+        printer_config_path='examples/printer_settings.json',
+        sim_config_path='examples/simulation_settings.json'
+    )
+    
+    # Process the results
+    print(f"Simulation complete. Voxel dimensions: {voxel_space.dimensions}")
+    
+    # Generate mesh and export to STL
+    mesh = output.generate_mesh()
+    stl_path = output.export_mesh_to_stl(mesh)
+    print(f"STL exported to: {stl_path}")
+    
+if __name__ == "__main__":
+    process_gcode('examples/gcode_example.gcode')
+```
+
+See [examples/jupyter_example.ipynb](examples/jupyter_example.ipynb) and [examples/example.py](examples/example.py) for detailed usage instructions and examples.
+
 - Running tests
 ```bash
 pytest

@@ -7,9 +7,27 @@ from app.instructions.instruction import Instruction
 logger = logging.getLogger(__name__)
 
 
+# The following checks are currently performed during gcode parsing:
+# 1. UTF-8 BOM removal (line_raw = line_raw.lstrip('\ufeff'))
+# 2. Comment stripping (line = line_raw.split(";", 1)[0])
+# 3. Case normalization (line = line.upper())
+# 4. Whitespace handling (line = line.strip())
+# 5. Line number handling (N-code removal)
+# 6. Parameter value validation:
+#    - Missing numeric values for parameters
+#    - Malformed numeric values (regex check)
+# 7. Unit conversion (inches to mm)
+# 8. Positioning mode tracking (absolute vs relative)
+# 9. Extrusion mode tracking (absolute vs relative)
+# 10. Position reset handling (G92)
+# 11. Unsupported M-code warnings
+# 12. Movement coordinate calculation based on modes
+
+
 class Gcode(Instruction):
-    def __init__(self, gcode_path, default_nozzle_speed, printer):
+    def __init__(self, gcode_path=None, gcode_content=None, default_nozzle_speed=40.0, printer=None):
         self.gcode_path = gcode_path
+        self.gcode_content = gcode_content
         self._movements = list()
         self._coordinate_limits = {}
         self._number_printed_filaments = 0
@@ -38,8 +56,6 @@ class Gcode(Instruction):
         return self._default_nozzle_speed
 
     def read(self):
-        gcode_file = open(self.gcode_path, "r")
-
         # Default values
         flag_relative = 0  # G90 -> absolute printing
         e_relative = 0  # M82 -> absolute extrusion
@@ -55,7 +71,15 @@ class Gcode(Instruction):
 
         logger.info("Processing .gcode ...")
 
-        for line_raw in gcode_file:
+        # Determine if we're reading from a file or from content
+        if self.gcode_path:
+            gcode_lines = open(self.gcode_path, "r")
+        elif self.gcode_content:
+            gcode_lines = self.gcode_content.splitlines()
+        else:
+            raise ValueError("Either gcode_path or gcode_content must be provided")
+
+        for line_raw in gcode_lines:
             # Strip UTF-8 BOM if present
             line_raw = line_raw.lstrip('\ufeff')
             # 1. Strip comments
@@ -164,7 +188,9 @@ class Gcode(Instruction):
                     )
                     movements.append(coord_new)
 
-        gcode_file.close()
+        # Close file if we opened one
+        if self.gcode_path:
+            gcode_lines.close()
 
         # Ensure coordinate limits calculation happens *after* the loop
         xlim, ylim, zlim, nfil, coord_fil = self._max_min_extru_coordinates(
