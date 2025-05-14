@@ -25,6 +25,14 @@ Help us continue to share work open source:
 
 - Tell people about this repo
 
+## LLM Reference Guide
+
+For developers using large language models (LLMs) for code editing and development, we provide a comprehensive reference document:
+
+- [LLM_REFERENCE.md](LLM_REFERENCE.md) - A structured overview of the repository designed to minimize context needed for LLM code editing
+
+This reference document should be updated as the repository evolves to ensure it remains accurate and useful.
+
 ## Running locally
 
 - VOLCO was tested using python `3.8`, `3.9` and `3.10`
