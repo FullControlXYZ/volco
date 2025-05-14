@@ -148,7 +148,7 @@ Provides numerical solvers for the simulation.
 Parameters: nozzle_jerk_speed, extruder_jerk_speed, nozzle_acceleration, extruder_acceleration, feedstock_filament_diameter, nozzle_diameter
 
 ### Simulation Settings (`simulation_settings.json`)
-Parameters: voxel_size, step_size, x_offset, y_offset, z_offset, simulation_name, results_folder, radius_increment, solver_tolerance, x_crop, y_crop, z_crop, consider_acceleration
+Parameters: voxel_size, step_size, x_offset, y_offset, z_offset, simulation_name, results_folder, radius_increment, solver_tolerance, x_crop, y_crop, z_crop, consider_acceleration, stl_ascii
 
 ## Usage Patterns
 

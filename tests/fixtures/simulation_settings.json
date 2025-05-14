@@ -10,5 +10,7 @@
     "solver_tolerance": 0.0001,
     "x_crop": [11.0, 13.0],
     "y_crop": ["all", "all"],
-    "z_crop": [0.0, "all"]
+    "z_crop": [0.0, "all"],
+    "consider_acceleration": false,
+    "stl_ascii": true
 }

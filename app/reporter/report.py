@@ -114,6 +114,7 @@ class SimulationOutput:
         Export the mesh to an STL file.
         If mesh is not provided, uses the stored mesh.
         If file_path is not provided, uses the default path based on simulation settings.
+        Uses the stl_ascii setting from simulation configuration to determine the STL format.
         """
         if mesh is None:
             if self.mesh is None:
@@ -126,7 +127,7 @@ class SimulationOutput:
         stl_file_name = self._simulation.simulation_name + ".stl"
         file_path = os.path.join(result_path, stl_file_name)
         
-        return export_mesh_to_stl(mesh, file_path)
+        return export_mesh_to_stl(mesh, file_path, ascii_format=self._simulation.stl_ascii)
 
     def visualize_mesh(self, mesh=None, visualizer='trimesh', color_scheme='cyan_blue'):
         """

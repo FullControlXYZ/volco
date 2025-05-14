@@ -32,7 +32,8 @@ custom_sim_config = {
     "x_crop": ["all", "all"],
     "y_crop": ["all", "all"],
     "z_crop": [0.0, "all"],
-    "consider_acceleration": True
+    "consider_acceleration": True,
+    "stl_ascii": True
 }
 
 

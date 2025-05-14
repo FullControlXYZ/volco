@@ -19,3 +19,5 @@ class TestSimulation:
         assert simulation.x_crop == [11, 13]
         assert simulation.y_crop == ["all", "all"]
         assert simulation.z_crop == [0.0, "all"]
+        assert simulation.consider_acceleration == False
+        assert simulation.stl_ascii == True

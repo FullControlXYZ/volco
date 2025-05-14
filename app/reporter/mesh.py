@@ -68,7 +68,7 @@ def generate_mesh_from_voxels(voxel_space, voxel_size):
             return None
     """
 
-def export_mesh_to_stl(mesh, file_path):
+def export_mesh_to_stl(mesh, file_path, ascii_format=True):
     """
     Export the mesh to an STL file.
     
@@ -78,7 +78,9 @@ def export_mesh_to_stl(mesh, file_path):
         The mesh to export (can be a Trimesh object or a Scene object from as_boxes())
     file_path : str
         The path to save the STL file
-        
+    ascii_format : bool
+        Whether to export in ASCII format (True) or binary format (False)
+            
     Returns:
     --------
     str
@@ -89,17 +91,32 @@ def export_mesh_to_stl(mesh, file_path):
         return None
         
     try:
-        logger.info(f"[Mesh]: Exporting STL to path {file_path}...")
+        format_type = "ASCII" if ascii_format else "binary"
+        logger.info(f"[Mesh]: Exporting STL in {format_type} format to path {file_path}...")
         
         # Check if mesh is a Scene object (from as_boxes()) or a regular Trimesh
         if isinstance(mesh, trimesh.Scene):
-            # Use export_mesh for Scene objects (box representation)
-            _ = trimesh.exchange.export.export_mesh(mesh, file_path, file_type="stl")
+            # For Scene objects, we need to handle differently
+            # First convert to a Trimesh if possible
+            export_options = {}
+            if ascii_format:
+                # Use the STLExporter's ASCII option
+                export_options = {'file_type': 'stl_ascii'}
+            else:
+                export_options = {'file_type': 'stl'}
+                
+            _ = trimesh.exchange.export.export_mesh(mesh, file_path, **export_options)
         else:
-            # Use direct export for Trimesh objects
-            mesh.export(file_path)
+            # For regular Trimesh objects
+            if ascii_format:
+                # ASCII STL export
+                with open(file_path, 'w') as f:
+                    f.write(trimesh.exchange.stl.export_stl_ascii(mesh))
+            else:
+                # Binary STL export (default)
+                mesh.export(file_path, file_type='stl')
             
-        logger.info(f"[Mesh]: STL exported!")
+        logger.info(f"[Mesh]: STL exported in {format_type} format!")
         return file_path
     except Exception as e:
         logger.error(f"[Mesh]: Failed to export STL: {e}")
