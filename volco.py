@@ -74,9 +74,9 @@ def run_simulation(
     
     # Initialize simulation configuration
     if sim_config:
-        simulation = Simulation(config_dict=sim_config)
+        simulation = Simulation(config_dict=sim_config, printer=printer)
     elif sim_config_path:
-        simulation = Simulation(config_path=sim_config_path)
+        simulation = Simulation(config_path=sim_config_path, printer=printer)
     else:
         raise ValueError("Either sim_config or sim_config_path must be provided")
     

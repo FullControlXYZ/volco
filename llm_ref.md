@@ -91,15 +91,18 @@ volco/
 
 ## 5. Configuration Options
 
+See README.md for default values
+
 ### Simulation Configuration
 - `voxel_size`: Size of each voxel in mm (smaller = higher accuracy but more memory usage)
 - `step_size`: Distance between simulation steps in mm (smaller = higher accuracy but slower)
-- `x_offset`, `y_offset`, `z_offset`: Offsets for the voxel space boundaries
-- `x_crop`, `y_crop`, `z_crop`: Cropping boundaries for the final output
+- `x_offset`, `y_offset`, `z_offset`: Offsets for the voxel space boundaries (default: 5 * nozzle_diameter)
+- `sphere_z_offset`: Distance to offset the sphere center below the nozzle (default: 0.5 * nozzle_diameter)
+- `x_crop`, `y_crop`, `z_crop`: Cropping boundaries for the final output (default: ["all", "all"] for each)
 - `radius_increment`: Increment for sphere radius in bisection method
-- `solver_tolerance`: Tolerance for volume conservation in bisection method
-- `consider_acceleration`: Whether to consider acceleration in volume distribution
-- `stl_ascii`: Whether to export STL in ASCII format
+- `solver_tolerance`: Tolerance for volume conservation in bisection method (default: 0.0001)
+- `consider_acceleration`: Whether to consider acceleration in volume distribution (default: false)
+- `stl_ascii`: Whether to export STL in ASCII format (default: false)
 
 ### Printer Configuration
 - `nozzle_diameter`: Diameter of the printer nozzle in mm
@@ -178,6 +181,7 @@ fig = output.visualize_mesh(visualizer='plotly')
 1. Update `app/geometry/sphere.py` or create a new deposition model class
 2. Modify `VoxelSpace._deposit_filament()` to use the new model
 3. Update volume calculation methods if necessary
+4. Adjust the `sphere_z_offset` centroid of spheres below nozzle
 
 ## 10. Performance Considerations
 

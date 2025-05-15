@@ -166,9 +166,9 @@ class VoxelSpace:
 
             nozzle_height = centre_coordinates[2]
 
-            # Correcting the centre of the sphere based on the nozzle diameter
+            # Correcting the centre of the sphere based on the configured z-offset
             centre_coordinates[2] = (
-                centre_coordinates[2] - self._printer.nozzle_diameter * 0.5
+                centre_coordinates[2] - self._simulation.sphere_z_offset
             )
 
             sphere_volume = volumes[step_n]

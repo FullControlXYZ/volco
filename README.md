@@ -25,29 +25,35 @@ Help us continue to share work open source:
 
 - Tell people about this repo
 
-## LLM Reference Guide
+## Papers
 
-For developers using large language models (LLMs) for code editing and development, we provide a comprehensive reference document:
+[1] - [VOLCO: A predictive model for 3D printed microarchitecture](https://www.sciencedirect.com/science/article/pii/S2214860417304852)
 
-- [llm_ref.md](llm_ref.md) - A structured overview of the repository designed to minimize context needed for LLM code editing
+[2] - [VOLCO-X: Numerical simulation of material distribution and voids in extrusion additive manufacturing](https://www.sciencedirect.com/science/article/abs/pii/S2214860421000658)
 
-This reference document should be updated as the repository evolves to ensure it remains accurate and useful.
 
 ## Running locally
+
+- See detailed usage instructions and examples:
+
+    - [examples/jupyter_example.ipynb](examples/jupyter_example.ipynb)
+    
+    - [examples/example.py](examples/example.py)
 
 - VOLCO was tested using python `3.8`, `3.9` and `3.10`
 
 - Installing dependencies
 
-It is recommended to install dependencies in a virtual environment. Please, follow this guide to create a virtual environment. After the virtual environment is initialized, install the dependencies:
-```bash
-pip3 install -r requirements.txt
-```
+    - It is recommended to install dependencies in a virtual environment. Please, follow this guide to create a virtual environment. After the virtual environment is initialized, install the dependencies:
+
+        ```bash
+        pip3 install -r requirements.txt
+        ```
 
 - Simulating 3D printing
-```bash
-python volco.py --gcode=examples/gcode_example.gcode --sim=examples/simulation_settings.json --printer=examples/printer_settings.json
-```
+    ```bash
+    python volco.py --gcode=examples/gcode_example.gcode --sim=examples/simulation_settings.json --printer=examples/printer_settings.json
+    ```
 
 ### Using in Jupyter Notebooks
 
@@ -110,7 +116,55 @@ if __name__ == "__main__":
     process_gcode('examples/gcode_example.gcode')
 ```
 
-See [examples/jupyter_example.ipynb](examples/jupyter_example.ipynb) and [examples/example.py](examples/example.py) for detailed usage instructions and examples.
+## Configuration Parameters
+
+VOLCO uses two configuration files: simulation settings and printer settings. Below is an explanation of each parameter and its recommended default value.
+
+### Simulation Configuration
+
+| Parameter | Description | Default Value |
+|-----------|-------------|---------------|
+| `voxel_size` | Size of each voxel in mm. Smaller values increase accuracy but require more memory and computation time. | 0.1 |
+| `step_size` | Distance between simulation steps in mm. Smaller values increase accuracy but slow down simulation. | 0.2 |
+| `x_offset`, `y_offset` | Padding added to the voxel space boundaries in x and y directions. | 5 × nozzle_diameter |
+| `z_offset` | Additional space above the maximum z-coordinate in the G-code. | 0 |
+| `sphere_z_offset` | Distance to offset the sphere center below the nozzle. Controls material deposition position. | 0.5 × nozzle_diameter |
+| `x_crop`, `y_crop`, `z_crop` | Cropping boundaries for the final output. Use ["all", "all"] to include everything. | ["all", "all"] |
+| `radius_increment` | Increment for sphere radius in the bisection method. | 0.1 |
+| `solver_tolerance` | Tolerance for volume conservation in the bisection method. | 0.0001 |
+| `consider_acceleration` | Whether to consider acceleration in volume distribution. | false |
+| `stl_ascii` | Whether to export STL in ASCII format (true) or binary (false). | false |
+
+### Printer Configuration
+
+| Parameter | Description | Default Value |
+|-----------|-------------|---------------|
+| `nozzle_diameter` | Diameter of the printer nozzle in mm. | 0.4 |
+| `feedstock_filament_diameter` | Diameter of the input filament in mm. | 1.75 |
+| `nozzle_jerk_speed` | Maximum instantaneous speed change for nozzle in mm/s. | 8.0 |
+| `extruder_jerk_speed` | Maximum instantaneous speed change for extruder in mm/s. | 5.0 |
+| `nozzle_acceleration` | Acceleration of the nozzle in mm/s². | 500.0 |
+| `extruder_acceleration` | Acceleration of the extruder in mm/s². | 1000.0 |
+
+### Parameter Relationships
+
+- **sphere_z_offset**: Controls how far below the nozzle the center of each deposited sphere is placed. A value of half the nozzle diameter is typically appropriate, as it places the sphere center at the bottom of the nozzle.
+
+- **x_offset and y_offset**: These provide space around the print in the voxel grid. Larger values ensure the entire print is captured but increase memory usage.
+
+- **z_offset**: Set to 0 as material cannot be deposited above the nozzle height.
+
+- **consider_acceleration**: When true, the simulation accounts for acceleration and deceleration, which can provide more accurate results but increases computation time.
+
+## LLM Reference Guide
+
+For developers using large language models (LLMs) for code editing and development, we provide a comprehensive reference document:
+
+- [llm_ref.md](llm_ref.md) - A structured overview of the repository designed to minimize context needed for LLM code editing
+
+This reference document should be updated as the repository evolves to ensure it remains accurate and useful.
+
+## Running tests
 
 - Running tests
 ```bash
@@ -133,9 +187,3 @@ make run-volco GCODE=examples/gcode_example.gcode SIM=examples/simulation_settin
 ```bash
 make test
 ```
-
-## Papers
-
-[1] - [VOLCO: A predictive model for 3D printed microarchitecture](https://www.sciencedirect.com/science/article/pii/S2214860417304852)
-
-[2] - [VOLCO-X: Numerical simulation of material distribution and voids in extrusion additive manufacturing](https://www.sciencedirect.com/science/article/abs/pii/S2214860421000658)
