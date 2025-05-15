@@ -20,7 +20,7 @@ class TestSphere:
 
         new_voxel_space = sphere.deform_voxel_space_for_big_spheres(voxel_space, 10.0)
 
-        length_i, length_j, length_k = np.shape(new_voxel_space)
+        length_i, length_j, length_k = new_voxel_space.shape
 
         assert length_i == 15
         assert length_j == 20

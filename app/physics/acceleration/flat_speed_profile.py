@@ -7,8 +7,7 @@ class FlatSpeedProfile(SpeedProfile):
     def calculate_displacements_in_time(
         self, discrete_time, final_time, target_speed, threshold_speed, acceleration
     ):
-        speed = np.zeros(discrete_time.size)
-        speed = np.add(speed, target_speed)
+        speed = np.full(discrete_time.size, target_speed)
 
         displacements_nozzle, total_length = self.calculate_integral_trapezoidal(
             discrete_time, speed

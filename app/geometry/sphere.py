@@ -49,7 +49,7 @@ class Sphere:
             )
 
             if distance_to_centre <= radius + self.voxel_size * 1e-8:
-                voxel_space.itemset(tuple(voxel), 1)
+                voxel_space[tuple(voxel)] = 1
 
         return voxel_space
 
@@ -97,7 +97,7 @@ class Sphere:
         return voxel_space
 
     def _maybe_expand_voxel_space(self, voxel_space, max_index, axis_number):
-        size = np.shape(voxel_space)
+        size = voxel_space.shape
 
         index_size = size[axis_number]
 

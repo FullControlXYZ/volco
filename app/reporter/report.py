@@ -45,7 +45,7 @@ class SimulationOutput:
             0.0,
         ]
 
-        axes_length = list(np.shape(self.voxel_space.space))
+        axes_length = list(self.voxel_space.space.shape)
 
         indexes_to_crop = list()
 
