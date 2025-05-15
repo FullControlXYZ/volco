@@ -5,16 +5,18 @@ from skimage import measure
 
 logger = logging.getLogger(__name__)
 
-# Check if we're using NumPy 2.x
-USING_NUMPY2 = int(np.__version__.split('.')[0]) >= 2
-if USING_NUMPY2:
-    logger.info(f"[Mesh]: Detected NumPy {np.__version__}, using NumPy 2.x compatible methods")
+# Log NumPy version for debugging purposes
+logger.info(f"[Mesh]: Using NumPy {np.__version__}")
 
 def create_box_representation(voxel_space, voxel_size):
     """
     Create a box representation mesh from a voxel space.
     This is a custom implementation that doesn't rely on any trimesh functions
     that might use the `ptp` method, making it compatible with NumPy 2.x.
+    
+    This optimized version only creates triangles for voxel faces that are either:
+    1. At the boundary of the voxel matrix
+    2. Adjacent to an empty voxel
     
     Parameters:
     -----------
@@ -25,8 +27,8 @@ def create_box_representation(voxel_space, voxel_size):
         
     Returns:
     --------
-    trimesh.Scene
-        A scene containing a box for each filled voxel
+    trimesh.Trimesh
+        A mesh containing only visible faces of filled voxels
     """
     # Find the indices of filled voxels
     filled_voxels = np.where(voxel_space > 0)
@@ -34,6 +36,9 @@ def create_box_representation(voxel_space, voxel_size):
     # If no filled voxels, return an empty scene
     if len(filled_voxels[0]) == 0:
         return trimesh.Scene()
+    
+    # Get the dimensions of the voxel space
+    max_i, max_j, max_k = voxel_space.shape
     
     # Define a unit cube vertices (8 corners)
     unit_cube_vertices = np.array([
@@ -47,59 +52,87 @@ def create_box_representation(voxel_space, voxel_size):
         [-0.5, 0.5, 0.5]     # 7: top, front, left
     ])
     
-    # Define the 12 triangles (6 faces, 2 triangles per face)
-    # Ensure normals point outward by ordering vertices counter-clockwise
-    unit_cube_faces = np.array([
-        [0, 2, 1], [0, 3, 2],  # bottom face
-        [4, 5, 6], [4, 6, 7],  # top face
-        [0, 1, 5], [0, 5, 4],  # back face
-        [2, 3, 7], [2, 7, 6],  # front face
-        [0, 4, 7], [0, 7, 3],  # left face
-        [1, 2, 6], [1, 6, 5]   # right face
-    ])
+    # Define the faces for each side of the cube (2 triangles per face)
+    # Each face is associated with a direction (negative or positive x, y, z)
+    face_definitions = [
+        # Face indices, Direction to check (di, dj, dk)
+        ([[0, 2, 1], [0, 3, 2]], (0, 0, -1)),  # bottom face (negative z)
+        ([[4, 5, 6], [4, 6, 7]], (0, 0, 1)),   # top face (positive z)
+        ([[0, 1, 5], [0, 5, 4]], (0, -1, 0)),  # back face (negative y)
+        ([[2, 3, 7], [2, 7, 6]], (0, 1, 0)),   # front face (positive y)
+        ([[0, 4, 7], [0, 7, 3]], (-1, 0, 0)),  # left face (negative x)
+        ([[1, 2, 6], [1, 6, 5]], (1, 0, 0))    # right face (positive x)
+    ]
     
-    # Calculate total number of vertices and faces
-    num_voxels = len(filled_voxels[0])
-    total_vertices = num_voxels * 8
-    total_faces = num_voxels * 12
+    # First pass: determine which voxels need to have vertices added
+    # and which faces need to be rendered
+    voxels_to_render = {}  # Maps voxel index to list of faces to render
     
-    # Pre-allocate arrays for all vertices and faces
-    all_vertices = np.zeros((total_vertices, 3))
-    all_faces = np.zeros((total_faces, 3), dtype=np.int64)
-    
-    # For each filled voxel, add a cube
     for idx, (i, j, k) in enumerate(zip(*filled_voxels)):
+        faces_to_render = []
+        
+        # Check each face to see if it should be rendered
+        for face_idx, (face_triangles, (di, dj, dk)) in enumerate(face_definitions):
+            # Check if this face is at the boundary or adjacent to an empty voxel
+            ni, nj, nk = i + di, j + dj, k + dk
+            
+            # If the neighbor is outside the voxel space or is empty, render this face
+            if (ni < 0 or ni >= max_i or
+                nj < 0 or nj >= max_j or
+                nk < 0 or nk >= max_k or
+                voxel_space[ni, nj, nk] == 0):
+                
+                faces_to_render.append(face_idx)
+        
+        # If this voxel has faces to render, add it to the dictionary
+        if faces_to_render:
+            voxels_to_render[(i, j, k)] = faces_to_render
+    
+    # Second pass: create vertices and faces
+    all_vertices = []
+    all_faces = []
+    voxel_to_vertex_idx = {}  # Maps voxel coordinates to starting vertex index
+    
+    for idx, (i, j, k) in enumerate(voxels_to_render.keys()):
         # Calculate the center position of the voxel
-        # This is set to match the trimesh output, it's not verified
-        # against the original voxel space
         center = np.array([
             (i) * voxel_size,
             (j) * voxel_size,
             (k) * voxel_size
         ])
         
-        # Scale and translate the unit cube vertices
+        # Scale and translate the unit cube vertices for this voxel
         voxel_vertices = unit_cube_vertices * voxel_size + center
         
-        # Add vertices to the array
-        vertex_start = idx * 8
-        vertex_end = vertex_start + 8
-        all_vertices[vertex_start:vertex_end] = voxel_vertices
+        # Add vertices for this voxel
+        vertex_start = len(all_vertices)
+        all_vertices.extend(voxel_vertices)
+        voxel_to_vertex_idx[(i, j, k)] = vertex_start
         
-        # Add faces to the array (with offset for vertex indices)
-        face_start = idx * 12
-        face_end = face_start + 12
-        all_faces[face_start:face_end] = unit_cube_faces + (idx * 8)
+        # Add faces for this voxel
+        for face_idx in voxels_to_render[(i, j, k)]:
+            face_triangles = face_definitions[face_idx][0]
+            for triangle in face_triangles:
+                all_faces.append([t + vertex_start for t in triangle])
     
-    # Create a single mesh from all vertices and faces
-    mesh = trimesh.Trimesh(vertices=all_vertices, faces=all_faces)
-    
-    # Return the mesh directly (not wrapped in a Scene)
-    return mesh
+    # Convert lists to numpy arrays
+    if all_vertices and all_faces:
+        vertices_array = np.array(all_vertices)
+        faces_array = np.array(all_faces)
+        
+        # Create a mesh from the vertices and faces
+        mesh = trimesh.Trimesh(vertices=vertices_array, faces=faces_array)
+        return mesh
+    else:
+        # If no faces were added, return an empty scene
+        return trimesh.Scene()
 
 def generate_mesh_from_voxels(voxel_space, voxel_size):
     """
-    Generate a 3D mesh from the voxel data using box representation.
+    Generate a 3D mesh from the voxel data using optimized box representation.
+    This implementation only creates triangles for voxel faces that are either:
+    1. At the boundary of the voxel matrix
+    2. Adjacent to an empty voxel
     
     Parameters:
     -----------
@@ -117,57 +150,36 @@ def generate_mesh_from_voxels(voxel_space, voxel_size):
         logger.warning("[Mesh]: No voxel space provided.")
         return None
     
-    # For NumPy 2.x, use our custom box representation function
-    if USING_NUMPY2:
+    try:
+        logger.info("[Mesh]: Using optimized box representation")
+        # Use our optimized box representation function
+        voxels = create_box_representation(voxel_space, voxel_size)
+        return voxels
+    except Exception as e:
+        logger.error(f"[Mesh]: Failed to generate mesh with optimized box representation: {e}")
+        
+        # Fall back to using marching cubes
         try:
-            logger.info("[Mesh]: Using NumPy 2.x compatible box representation")
-            # Use our custom box representation function
-            voxels = create_box_representation(voxel_space, voxel_size)
-            return voxels
+            logger.warning("[Mesh]: Falling back to marching cubes method")
+            mesh = trimesh.voxel.ops.matrix_to_marching_cubes(voxel_space, pitch=voxel_size)
+            return mesh
         except Exception as e:
-            logger.error(f"[Mesh]: Failed to generate mesh with custom box representation: {e}")
-            return None
-    else:
-        # For NumPy 1.x, use the original approach
-        try:
-            # Create a VoxelGrid object
-            mesh = trimesh.voxel.base.VoxelGrid(voxel_space)
+            logger.warning(f"[Mesh]: Failed to generate mesh with trimesh: {e}")
             
-            # Set origin and scale
-            origin = (0.0, 0.0, 0.0)
-            scale = (voxel_size, voxel_size, voxel_size)
-            
-            # Check if the mesh has origin and scale attributes before setting them
-            if hasattr(mesh, 'origin'):
-                mesh.origin[0], mesh.origin[1], mesh.origin[2] = origin
-            if hasattr(mesh, 'scale'):
-                mesh.scale.setflags(write=1)
-                mesh.scale[0], mesh.scale[1], mesh.scale[2] = scale
-            
-            # Convert to boxes representation
-            voxels = mesh.as_boxes(colors=None)
-            return voxels
-        except Exception as e:
-            logger.warning(f"[Mesh]: Failed to generate mesh with box representation: {e}")
-            # Fall back to using marching cubes
+            # Fall back to using skimage directly
             try:
-                mesh = trimesh.voxel.ops.matrix_to_marching_cubes(voxel_space, pitch=voxel_size)
+                logger.warning("[Mesh]: Falling back to skimage marching cubes")
+                verts, faces, normals, values = measure.marching_cubes(voxel_space, level=0.5)
+                
+                # Scale vertices by voxel size
+                verts = verts * voxel_size
+                
+                # Create mesh from vertices and faces
+                mesh = trimesh.Trimesh(vertices=verts, faces=faces)
                 return mesh
             except Exception as e:
-                logger.warning(f"[Mesh]: Failed to generate mesh with trimesh: {e}")
-                # Fall back to using skimage directly
-                try:
-                    verts, faces, normals, values = measure.marching_cubes(voxel_space, level=0.5)
-                    
-                    # Scale vertices by voxel size
-                    verts = verts * voxel_size
-                    
-                    # Create mesh from vertices and faces
-                    mesh = trimesh.Trimesh(vertices=verts, faces=faces)
-                    return mesh
-                except Exception as e:
-                    logger.error(f"[Mesh]: Failed to generate mesh with skimage: {e}")
-                    return None
+                logger.error(f"[Mesh]: Failed to generate mesh with skimage: {e}")
+                return None
 
 def export_mesh_to_stl(mesh, file_path, ascii_format=True):
     """
