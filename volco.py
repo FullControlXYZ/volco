@@ -1,5 +1,6 @@
 import logging
 import json
+import time
 
 from app.configs.printer import Printer
 from app.configs.simulation import Simulation
@@ -52,6 +53,8 @@ def run_simulation(
     4. Access the voxel space directly: output.voxel_space
     
     """
+    start_time = time.time()
+    
     # Initialize printer configuration
     if printer_config:
         printer = Printer(config_dict=printer_config)
@@ -102,6 +105,8 @@ def run_simulation(
     # For CLI usage, generate and export STL automatically
     if __name__ == "__main__":
         output.export_mesh_to_stl()
+    
+    print(f"\nTotal simulation time: {time.time() - start_time:.2f} seconds")
     
     return output
 
