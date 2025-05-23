@@ -156,13 +156,24 @@ VOLCO uses two configuration files: simulation settings and printer settings. Be
 
 - **consider_acceleration**: When true, the simulation accounts for acceleration and deceleration, which can provide more accurate results but increases computation time.
 
+## Finite Element Analysis (FEA)
+
+VOLCO includes a Finite Element Analysis (FEA) module that enables structural analysis of the simulated 3D printed parts. With just one line of code, you can analyze the structural behavior of your VOLCO simulation results:
+
+```python
+results = analyze_voxel_matrix(voxel_matrix, voxel_size, **analysis_parameters)
+```
+
+For detailed documentation and examples, see [app/postprocessing/fea/README.md](app/postprocessing/fea/README.md).
+
 ## LLM Reference Guide
 
-For developers using large language models (LLMs) for code editing and development, we provide a comprehensive reference document:
+For developers using large language models (LLMs) for code editing and development, we provide comprehensive reference documents:
 
 - [llm_ref.md](llm_ref.md) - A structured overview of the repository designed to minimize context needed for LLM code editing
+- [llm_ref_fea.md](llm_ref_fea.md) - Detailed documentation of the FEA module structure and functionality
 
-This reference document should be updated as the repository evolves to ensure it remains accurate and useful.
+These reference documents should be updated as the repository evolves to ensure they remain accurate and useful.
 
 ## Running tests
 
