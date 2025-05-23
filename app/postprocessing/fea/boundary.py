@@ -2,155 +2,146 @@
 Boundary condition definitions for FEA.
 
 This module provides functionality to define and apply boundary conditions
-for finite element analysis.
+for finite element analysis, with both Simple and Expert modes.
 """
 
 import numpy as np
-from typing import Tuple, Dict, Any, Callable, Optional, List, Union
-from .mesh import get_top_surface_nodes, get_bottom_surface_nodes
+from enum import Enum, auto
+from typing import Tuple, Dict, Any, Callable, Optional, List, Union, Set
 
 
-def apply_default_boundary_conditions(
-    nodes: np.ndarray,
-    voxel_matrix: np.ndarray,
-    **kwargs
-) -> Tuple[Dict[int, List[float]], np.ndarray]:
-    """
-    Apply default boundary conditions to the FE model.
-    
-    Default boundary conditions are:
-    - Bottom surface: Fixed (all DOFs constrained)
-    - Top surface: Prescribed displacement (1% downward)
-    
-    Args:
-        nodes: Array of node coordinates (N x 3)
-        voxel_matrix: 3D numpy array representing the voxel model
-        **kwargs: Optional parameters to customize the default boundary conditions:
-            - 'displacement_percentage': Percentage of model height for top displacement (default: 1.0)
-            - 'custom_top_bc': Custom function for top surface boundary conditions
-            - 'custom_bottom_bc': Custom function for bottom surface boundary conditions
+class Surface(Enum):
+    """Enumeration for standard surface identifiers"""
+    PLUS_X = auto()  # +x surface
+    MINUS_X = auto()  # -x surface
+    PLUS_Y = auto()  # +y surface
+    MINUS_Y = auto()  # -y surface
+    PLUS_Z = auto()  # +z surface
+    MINUS_Z = auto()  # -z surface
+
+
+class BoundaryCondition:
+    """Internal representation of boundary conditions"""
+    def __init__(self, node_indices: List[int], dof_values: List[Optional[float]]):
+        """
+        Initialize a boundary condition.
+        
+        Args:
+            node_indices: List of node indices to apply the boundary condition to
+            dof_values: List of 6 values [ux, uy, uz, rx, ry, rz] where None means unconstrained
+        """
+        self.node_indices = node_indices
+        self.dof_values = dof_values
+        
+    def apply(self, dofs: Dict[int, List[Optional[float]]]) -> Dict[int, List[Optional[float]]]:
+        """
+        Apply this boundary condition to the DOFs dictionary.
+        
+        Args:
+            dofs: Dictionary mapping node indices to prescribed displacements
             
-    Returns:
-        Tuple containing:
-            - dofs: Dictionary mapping node indices to prescribed displacements
-              {node_idx: [dx, dy, dz, rx, ry, rz]} where None means unconstrained
-            - forces: Array of nodal forces (N x 6)
+        Returns:
+            Updated DOFs dictionary
+        """
+        for node_idx in self.node_indices:
+            dofs[node_idx] = self.dof_values
+        return dofs
+
+
+def identify_surface_nodes(nodes: np.ndarray, surface: Surface) -> List[int]:
     """
-    # Get model height (max z - min z)
-    model_height = np.max(nodes[:, 2]) - np.min(nodes[:, 2])
+    Identify nodes on a specified surface.
     
-    # Get displacement percentage (default: 1%)
-    displacement_percentage = kwargs.get('displacement_percentage', 1.0)
-    displacement_magnitude = model_height * displacement_percentage / 100.0
+    Args:
+        nodes: Array of node coordinates
+        surface: Surface enumeration value
+        
+    Returns:
+        List of node indices on the specified surface
+    """
+    # Get model dimensions
+    x_min, y_min, z_min = np.min(nodes, axis=0)
+    x_max, y_max, z_max = np.max(nodes, axis=0)
     
-    # Get nodes on top and bottom surfaces
-    top_nodes = get_top_surface_nodes(nodes, None, voxel_matrix)
-    bottom_nodes = get_bottom_surface_nodes(nodes, None, voxel_matrix)
+    # Small tolerance for floating-point comparisons
+    tol = 1e-6
     
-    # Initialize DOFs dictionary and forces array
-    dofs = {}
-    forces = np.zeros((nodes.shape[0], 6))  # [Fx, Fy, Fz, Mx, My, Mz]
-    
-    # Apply custom or default boundary conditions
-    if 'custom_bottom_bc' in kwargs:
-        custom_bottom_bc = kwargs['custom_bottom_bc']
-        bottom_dofs = custom_bottom_bc(nodes, bottom_nodes)
-        dofs.update(bottom_dofs)
+    if surface == Surface.PLUS_X:
+        return [i for i, node in enumerate(nodes) if abs(node[0] - x_max) < tol]
+    elif surface == Surface.MINUS_X:
+        return [i for i, node in enumerate(nodes) if abs(node[0] - x_min) < tol]
+    elif surface == Surface.PLUS_Y:
+        return [i for i, node in enumerate(nodes) if abs(node[1] - y_max) < tol]
+    elif surface == Surface.MINUS_Y:
+        return [i for i, node in enumerate(nodes) if abs(node[1] - y_min) < tol]
+    elif surface == Surface.PLUS_Z:
+        return [i for i, node in enumerate(nodes) if abs(node[2] - z_max) < tol]
+    elif surface == Surface.MINUS_Z:
+        return [i for i, node in enumerate(nodes) if abs(node[2] - z_min) < tol]
     else:
-        # Default: Fix bottom surface (constrain all DOFs)
-        for node_idx in bottom_nodes:
-            dofs[node_idx] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # [dx, dy, dz, rx, ry, rz]
-    
-    if 'custom_top_bc' in kwargs:
-        custom_top_bc = kwargs['custom_top_bc']
-        top_dofs = custom_top_bc(nodes, top_nodes, displacement_magnitude)
-        dofs.update(top_dofs)
-    else:
-        # Default: Prescribe displacement on top surface (negative z direction)
-        for node_idx in top_nodes:
-            # Allow x and y displacement, constrain z to prescribed value
-            # Allow rotations (None means unconstrained)
-            dofs[node_idx] = [None, None, -displacement_magnitude, None, None, None]
-    
-    return dofs, forces
+        raise ValueError(f"Unknown surface: {surface}")
 
 
-def apply_custom_boundary_conditions(
-    nodes: np.ndarray,
-    bc_function: Callable,
-    **kwargs
-) -> Tuple[Dict[int, List[float]], np.ndarray]:
+def select_nodes_by_predicate(nodes: np.ndarray, predicate: Callable) -> List[int]:
     """
-    Apply custom boundary conditions using a user-defined function.
+    Select nodes that satisfy a given predicate function.
     
     Args:
-        nodes: Array of node coordinates (N x 3)
-        bc_function: Function that takes nodes and kwargs and returns dofs and forces
-        **kwargs: Additional parameters for the bc_function
+        nodes: Array of node coordinates
+        predicate: Function that takes a node coordinate and returns a boolean
         
     Returns:
-        Tuple containing:
-            - dofs: Dictionary mapping node indices to prescribed displacements
-            - forces: Array of nodal forces
+        List of node indices that satisfy the predicate
     """
-    return bc_function(nodes, **kwargs)
+    return [i for i, node in enumerate(nodes) if predicate(node)]
 
 
-def create_fixed_support(node_indices: List[int]) -> Dict[int, List[float]]:
+def select_nodes_in_box(nodes: np.ndarray, min_coords: List[float], max_coords: List[float]) -> List[int]:
     """
-    Create fixed support boundary conditions for specified nodes.
+    Select nodes within a bounding box.
     
     Args:
-        node_indices: List of node indices to fix
+        nodes: Array of node coordinates
+        min_coords: Minimum coordinates [x_min, y_min, z_min]
+        max_coords: Maximum coordinates [x_max, y_max, z_max]
         
     Returns:
-        Dictionary mapping node indices to prescribed displacements (all zero)
+        List of node indices within the bounding box
     """
-    dofs = {}
-    for node_idx in node_indices:
-        dofs[node_idx] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # [dx, dy, dz, rx, ry, rz]
-    return dofs
+    return select_nodes_by_predicate(
+        nodes,
+        lambda node: all(min_coords[i] <= node[i] <= max_coords[i] for i in range(3))
+    )
 
 
-def create_displacement_bc(
-    node_indices: List[int],
-    displacement: List[Optional[float]]
-) -> Dict[int, List[Optional[float]]]:
+def select_nodes_on_plane(nodes: np.ndarray, point: List[float], normal: List[float], tolerance: float = 1e-6) -> List[int]:
     """
-    Create displacement boundary conditions for specified nodes.
+    Select nodes on a plane defined by a point and normal vector.
     
     Args:
-        node_indices: List of node indices to apply displacement to
-        displacement: List of 6 values [dx, dy, dz, rx, ry, rz] where None means unconstrained
+        nodes: Array of node coordinates
+        point: Point on the plane [x, y, z]
+        normal: Normal vector to the plane [nx, ny, nz]
+        tolerance: Distance tolerance for considering a node to be on the plane
         
     Returns:
-        Dictionary mapping node indices to prescribed displacements
+        List of node indices on the plane
     """
-    dofs = {}
-    for node_idx in node_indices:
-        dofs[node_idx] = displacement
-    return dofs
-
-
-def create_force_bc(
-    node_indices: List[int],
-    force: List[float],
-    forces: np.ndarray
-) -> np.ndarray:
-    """
-    Create force boundary conditions for specified nodes.
+    # Normalize the normal vector
+    normal = np.array(normal)
+    normal = normal / np.linalg.norm(normal)
     
-    Args:
-        node_indices: List of node indices to apply force to
-        force: List of 6 values [Fx, Fy, Fz, Mx, My, Mz]
-        forces: Existing forces array to update
-        
-    Returns:
-        Updated forces array
-    """
-    for node_idx in node_indices:
-        forces[node_idx] = force
-    return forces
+    # Convert point to numpy array
+    point = np.array(point)
+    
+    # Define predicate function for nodes on the plane
+    def on_plane(node):
+        # Calculate distance from node to plane
+        vec = node - point
+        distance = abs(np.dot(vec, normal))
+        return distance < tolerance
+    
+    return select_nodes_by_predicate(nodes, on_plane)
 
 
 def select_nodes_by_position(
@@ -183,3 +174,114 @@ def select_nodes_by_position(
         mask &= (nodes[:, 2] >= z_range[0]) & (nodes[:, 2] <= z_range[1])
     
     return np.where(mask)[0].tolist()
+
+
+def create_fixed_support(node_indices: List[int]) -> Dict[int, List[float]]:
+    """
+    Create fixed support boundary conditions for specified nodes.
+    
+    Args:
+        node_indices: List of node indices to fix
+        
+    Returns:
+        Dictionary mapping node indices to prescribed displacements (all zero)
+    """
+    dofs = {}
+    for node_idx in node_indices:
+        dofs[node_idx] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # [ux, uy, uz, rx, ry, rz]
+    return dofs
+
+
+def create_displacement_bc(
+    node_indices: List[int],
+    displacement: List[Optional[float]]
+) -> Dict[int, List[Optional[float]]]:
+    """
+    Create displacement boundary conditions for specified nodes.
+    
+    Args:
+        node_indices: List of node indices to apply displacement to
+        displacement: List of 6 values [ux, uy, uz, rx, ry, rz] where None means unconstrained
+        
+    Returns:
+        Dictionary mapping node indices to prescribed displacements
+    """
+    dofs = {}
+    for node_idx in node_indices:
+        dofs[node_idx] = displacement
+    return dofs
+
+
+def create_force_bc(
+    node_indices: List[int],
+    force: List[float],
+    forces: np.ndarray
+) -> np.ndarray:
+    """
+    Create force boundary conditions for specified nodes.
+    
+    Args:
+        node_indices: List of node indices to apply force to
+        force: List of 6 values [Fx, Fy, Fz, Mx, My, Mz]
+        forces: Existing forces array to update
+        
+    Returns:
+        Updated forces array
+    """
+    for node_idx in node_indices:
+        forces[node_idx] = force
+    return forces
+
+
+def apply_boundary_conditions(
+    nodes: np.ndarray,
+    elements: np.ndarray,
+    constraints: Dict[Union[Surface, str], Union[str, List[Optional[float]], Callable]],
+    **kwargs
+) -> Tuple[Dict[int, List[Optional[float]]], np.ndarray]:
+    """
+    Apply boundary conditions to the FE model using the enhanced system.
+    
+    Args:
+        nodes: Array of node coordinates (N x 3)
+        elements: Array of element connectivity (E x 8)
+        constraints: Dictionary mapping surface identifiers or custom functions to constraints
+        **kwargs: Additional parameters for customization
+            
+    Returns:
+        Tuple containing:
+            - dofs: Dictionary mapping node indices to prescribed displacements
+            - forces: Array of nodal forces (N x 6)
+    """
+    # Initialize DOFs dictionary and forces array
+    dofs = {}
+    forces = np.zeros((nodes.shape[0], 6))  # [Fx, Fy, Fz, Mx, My, Mz]
+    
+    # Process each constraint
+    for key, value in constraints.items():
+        if isinstance(key, Surface):
+            # Simple mode: Surface enumeration
+            node_indices = identify_surface_nodes(nodes, key)
+            
+            if value == "fix":
+                # Fix all DOFs
+                bc = BoundaryCondition(node_indices, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+                bc.apply(dofs)
+            elif isinstance(value, list):
+                # Apply displacement vector
+                bc = BoundaryCondition(node_indices, value)
+                bc.apply(dofs)
+            else:
+                raise ValueError(f"Unsupported constraint value for surface {key}: {value}")
+        
+        elif key == "custom" and callable(value):
+            # Expert mode: Custom function
+            custom_dofs = value(nodes, elements)
+            dofs.update(custom_dofs)
+        
+        else:
+            raise ValueError(f"Unsupported constraint key: {key}")
+    
+    return dofs, forces
+
+

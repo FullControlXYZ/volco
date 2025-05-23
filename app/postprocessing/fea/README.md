@@ -11,11 +11,19 @@ This module provides structural analysis capabilities for voxel models generated
 - Compare original and deformed meshes in a single visualization
 - Save and load analysis results in various formats
 
+## Simplified Import
+
+For convenience, you can import all FEA functionality from a single module:
+
+```python
+from volco_fea import analyze_voxel_matrix, visualize_fea, Surface, export_visualization
+```
+
 ## Basic Usage
 
 ```python
 from volco import run_simulation
-from app.postprocessing.fea import analyze_voxel_matrix
+from volco_fea import analyze_voxel_matrix, Surface
 
 # Run VOLCO simulation
 output = run_simulation(
@@ -24,14 +32,28 @@ output = run_simulation(
     sim_config_path='examples/simulation_settings.json'
 )
 
-# Get the voxel matrix from the simulation output
-voxel_matrix = output.voxel_space.space
+# Get the cropped voxel matrix from the simulation output
+voxel_matrix = output.cropped_voxel_space
 voxel_size = output._simulation.voxel_size
+
+# Define boundary conditions using Simple Mode
+
+# Calculate displacement as 1% of model height
+model_height = voxel_matrix.shape[2] * voxel_size
+displacement_magnitude = model_height * 0.01
+
+boundary_conditions = {
+    'constraints': {
+        Surface.MINUS_Z: "fix",  # Fix bottom surface
+        Surface.PLUS_Z: [None, None, -displacement_magnitude, None, None, None]  # Apply compression on top
+    }
+}
 
 # Run FEA analysis
 results = analyze_voxel_matrix(
     voxel_matrix=voxel_matrix,
-    voxel_size=voxel_size
+    voxel_size=voxel_size,
+    boundary_conditions=boundary_conditions
 )
 
 # Access results
@@ -40,8 +62,8 @@ print(f"Maximum von Mises stress: {results['max_von_mises']} MPa")
 
 # If visualization was enabled
 if 'visualization' in results:
-    from app.postprocessing.fea.viz import export_visualization
-    export_visualization(results['visualization'], "fea_results.html")
+    from volco_fea import export_visualization
+    export_visualization(results['visualization'], "Results_volco/fea/von_mises.html")
 ```
 
 ## API Reference
@@ -58,10 +80,10 @@ Perform finite element analysis on a voxel matrix.
 - `material_properties`: Dictionary containing material properties (optional)
   - `young_modulus`: Young's modulus in MPa (default: 2000 for typical PLA)
   - `poisson_ratio`: Poisson's ratio (default: 0.3 for typical PLA)
-- `boundary_conditions`: Dictionary specifying boundary conditions (optional)
-  - `displacement_percentage`: Percentage of model height for top displacement (default: 1.0)
-  - `custom_top_bc`: Custom function for top surface boundary conditions
-  - `custom_bottom_bc`: Custom function for bottom surface boundary conditions
+- `boundary_conditions`: Dictionary specifying boundary conditions (required)
+  - `constraints`: Dictionary mapping surface identifiers or custom functions to constraints
+    - Simple Mode: `{Surface.MINUS_Z: "fix", Surface.PLUS_Z: [None, None, -0.1, None, None, None]}`
+    - Expert Mode: `{"custom": custom_function}`
 - `visualization`: Whether to generate visualization (default: True)
 - `result_type`: Type of result to visualize ('displacement', 'von_mises')
 - `scale_factor`: Factor to scale displacements for visualization (default: 1.0)
@@ -125,12 +147,27 @@ results = analyze_voxel_matrix(
 )
 ```
 
-### Custom Boundary Conditions
+### Enhanced Boundary Condition System
+
+The FEA module provides an enhanced boundary condition system with two modes:
+
+#### Simple Mode
+
+Simple Mode uses Surface enumerations and simple constraint specifications, making it easy for non-experts to apply boundary conditions.
 
 ```python
-# Define custom boundary conditions
+from volco_fea import Surface
+
+# Get model dimensions
+model_height = np.max(voxel_matrix.shape) * voxel_size
+displacement_magnitude = model_height * 0.01  # 1% of model height
+
+# Define boundary conditions using Simple Mode
 boundary_conditions = {
-    'displacement_percentage': 2.0  # 2% displacement instead of default 1%
+    'constraints': {
+        Surface.MINUS_Z: "fix",  # Fix bottom surface
+        Surface.PLUS_Z: [None, None, -displacement_magnitude, None, None, None]  # Apply compression on top
+    }
 }
 
 results = analyze_voxel_matrix(
@@ -139,6 +176,117 @@ results = analyze_voxel_matrix(
     boundary_conditions=boundary_conditions
 )
 ```
+
+You can use the "fix" keyword to constrain all degrees of freedom, or specify a vector [ux, uy, uz, rx, ry, rz] where None means unconstrained.
+
+Example for tension in X direction:
+```python
+# Calculate displacement as 1% of model width
+model_width = np.max(voxel_matrix.shape) * voxel_size
+displacement_magnitude = model_width * 0.01
+
+boundary_conditions = {
+    'constraints': {
+        Surface.MINUS_X: "fix",  # Fix -X surface
+        Surface.PLUS_X: [displacement_magnitude, None, None, None, None, None]  # Apply tension on +X
+    }
+}
+```
+
+Available Surface enumerations:
+- `Surface.PLUS_X`: +x surface
+- `Surface.MINUS_X`: -x surface
+- `Surface.PLUS_Y`: +y surface
+- `Surface.MINUS_Y`: -y surface
+- `Surface.PLUS_Z`: +z surface
+- `Surface.MINUS_Z`: -z surface
+
+#### Expert Mode
+
+Expert Mode provides direct access to node data structures with functional utilities, giving FEA experts full control over boundary conditions.
+
+```python
+# Define custom boundary conditions using expert mode with list comprehensions
+def custom_constraint_function(nodes, elements):
+    # Get model dimensions directly
+    x_coords = nodes[:, 0]
+    y_coords = nodes[:, 1]
+    z_coords = nodes[:, 2]
+    
+    # Calculate model height
+    model_height = np.max(z_coords) - np.min(z_coords)
+    
+    # Calculate displacement as 2% of model height
+    displacement_magnitude = model_height * 0.02
+    
+    # Create constraints dictionary using list comprehension
+    return {
+        # Fix nodes in bottom 10% using list comprehension
+        i: [0, 0, 0, 0, 0, 0] for i in range(len(nodes))
+        if nodes[i, 2] < np.min(z_coords) + 0.1 * model_height
+    } | {
+        # Apply displacement to nodes in top 5% using another list comprehension
+        i: [None, None, -displacement_magnitude, None, None, None] for i in range(len(nodes))
+        if nodes[i, 2] > np.max(z_coords) - 0.05 * model_height
+    }
+
+# Define boundary conditions
+boundary_conditions = {
+    'constraints': {
+        "custom": custom_constraint_function
+    }
+}
+```
+
+#### Functional Utilities for Expert Mode
+
+The module provides several utility functions to help with node selection:
+
+```python
+from volco_fea import select_nodes_by_predicate, select_nodes_in_box
+
+def custom_constraint_function(nodes, elements):
+    # Get model dimensions
+    x_min, y_min, z_min = np.min(nodes, axis=0)
+    x_max, y_max, z_max = np.max(nodes, axis=0)
+    
+    # Select nodes in the bottom box (10% of height)
+    bottom_nodes = select_nodes_in_box(
+        nodes,
+        [x_min, y_min, z_min],
+        [x_max, y_max, z_min + 0.1 * (z_max - z_min)]
+    )
+    
+    # Select nodes on a diagonal plane where x ≈ y
+    diagonal_nodes = select_nodes_by_predicate(
+        nodes,
+        lambda node: abs(node[0] - node[1]) < 0.1 * (x_max - x_min)
+    )
+    
+    # Create constraints dictionary
+    constraints = {}
+    
+    # Fix bottom nodes
+    for node_idx in bottom_nodes:
+        constraints[node_idx] = [0, 0, 0, 0, 0, 0]
+    
+    # Apply displacement to diagonal nodes that are in the top half
+    for node_idx in diagonal_nodes:
+        if nodes[node_idx, 2] > (z_min + z_max) / 2:
+            # Calculate displacement as 1.5% of model height
+            displacement_magnitude = (z_max - z_min) * 0.015
+            constraints[node_idx] = [None, None, -displacement_magnitude, None, None, None]
+    
+    return constraints
+}
+```
+
+Available utility functions:
+- `select_nodes_by_predicate(nodes, predicate)`: Select nodes that satisfy a given predicate function
+- `select_nodes_in_box(nodes, min_coords, max_coords)`: Select nodes within a bounding box
+- `select_nodes_on_plane(nodes, point, normal, tolerance)`: Select nodes on a plane defined by a point and normal vector
+- `select_nodes_by_position(nodes, x_range, y_range, z_range)`: Select nodes within specified coordinate ranges
+
 
 ### Saving Results
 
@@ -155,13 +303,12 @@ results = analyze_voxel_matrix(
 ### Loading Results
 
 ```python
-from app.postprocessing.fea import load_fea_results
+from volco_fea import load_fea_results, visualize_fea, export_visualization
 
 # Load results
 loaded_results = load_fea_results('Results_volco/fea/my_analysis.pkl')
 
 # Create visualization from loaded results
-from app.postprocessing.fea.viz import visualize_fea, export_visualization
 viz = visualize_fea(
     nodes=loaded_results['nodes'],
     elements=loaded_results['elements'],
@@ -173,7 +320,7 @@ viz = visualize_fea(
 )
 
 # Export the visualization to an HTML file
-export_visualization(viz, "visualization.html")
+export_visualization(viz, "Results_volco/fea/loaded_von_mises_with_undeformed.html")
 ```
 
 ## Example Files
@@ -182,6 +329,7 @@ For complete examples, see:
 - [examples/fea_example.py](../../../examples/fea_example.py) - Basic example of FEA analysis
 - [examples/fea_save_results.py](../../../examples/fea_save_results.py) - Example of saving FEA results
 - [examples/fea_load_results.py](../../../examples/fea_load_results.py) - Example of loading and visualizing FEA results
+- [examples/fea_boundary_conditions_example.py](../../../examples/fea_boundary_conditions_example.py) - Examples of using the enhanced boundary condition system
 
 ## Module Structure
 
@@ -212,7 +360,7 @@ The visualization uses the "volco mesh visualization method" which:
 The `visualize_fea()` function provides a unified interface for all visualization needs:
 
 ```python
-from app.postprocessing.fea.viz import visualize_fea, export_visualization
+from volco_fea import visualize_fea, export_visualization
 
 # Create visualization
 viz = visualize_fea(
@@ -227,7 +375,7 @@ viz = visualize_fea(
 )
 
 # Export to HTML file
-export_visualization(viz, "fea_results.html")
+export_visualization(viz, "Results_volco/fea/von_mises_with_undeformed.html")
 ```
 
 ### Visualization Options
@@ -253,5 +401,5 @@ viz = visualize_fea(
 )
 
 # Export to HTML file
-export_visualization(viz, "comparison_viz.html")
+export_visualization(viz, "Results_volco/fea/von_mises_with_undeformed.html")
 ```

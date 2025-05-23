@@ -45,10 +45,10 @@ app/postprocessing/fea/
 - `get_top_surface_nodes()`, `get_bottom_surface_nodes()`: Helper functions for boundary condition application
 
 ### Boundary Conditions (app/postprocessing/fea/boundary.py)
-- `apply_default_boundary_conditions()`: Applies standard boundary conditions (fixed bottom, displaced top)
-- `apply_custom_boundary_conditions()`: Allows for user-defined boundary conditions
-- `create_fixed_support()`, `create_displacement_bc()`, `create_force_bc()`: Helper functions for creating specific boundary conditions
-- `select_nodes_by_position()`: Utility to select nodes based on spatial coordinates
+- `Surface`: Enumeration for standard surface identifiers (PLUS_X, MINUS_X, PLUS_Y, MINUS_Y, PLUS_Z, MINUS_Z)
+- `apply_boundary_conditions()`: Applies boundary conditions using the enhanced system
+- `identify_surface_nodes()`: Identifies nodes on a specified surface
+- `select_nodes_by_predicate()`, `select_nodes_in_box()`, `select_nodes_on_plane()`: Functional utilities for expert users
 
 ### Solver (app/postprocessing/fea/solver.py)
 - `solve_static_problem()`: Main solver function for linear static analysis
@@ -80,10 +80,10 @@ app/postprocessing/fea/
    - Maps physical coordinates based on voxel size
 
 ### Boundary Condition Application
-1. `apply_default_boundary_conditions()` → Applies standard BCs
-   - Bottom surface: Fixed (all DOFs constrained)
-   - Top surface: Prescribed displacement (typically 1% of model height)
-2. `get_top_surface_nodes()`, `get_bottom_surface_nodes()` → Identify nodes for BC application
+1. `apply_boundary_conditions()` → Applies boundary conditions using the enhanced system
+   - Simple Mode: Uses Surface enumerations (PLUS_X, MINUS_X, etc.) with "fix" keyword or vector constraints
+   - Expert Mode: Uses custom functions for advanced boundary conditions
+2. `identify_surface_nodes()` → Identifies nodes on specified surfaces
 3. Creates dictionary mapping node indices to prescribed displacements
 
 ### Solving the FE Problem
@@ -116,9 +116,9 @@ app/postprocessing/fea/
 - `poisson_ratio`: Poisson's ratio (default: 0.3 for typical PLA)
 
 ### Boundary Conditions
-- `displacement_percentage`: Percentage of model height for top displacement (default: 1.0)
-- `custom_top_bc`: Custom function for top surface boundary conditions
-- `custom_bottom_bc`: Custom function for bottom surface boundary conditions
+- `constraints`: Dictionary mapping surface identifiers or custom functions to constraints
+  - Simple Mode: `{Surface.MINUS_Z: "fix", Surface.PLUS_Z: [None, None, -0.1, None, None, None]}`
+  - Expert Mode: `{"custom": custom_function}`
 
 ### Visualization Options
 - `visualization`: Whether to generate visualization (default: True)
@@ -135,10 +135,18 @@ app/postprocessing/fea/
 
 ## 6. Usage Patterns
 
+### Simplified Import
+```python
+from volco import run_simulation
+from volco_fea import analyze_voxel_matrix, Surface, visualize_fea, export_visualization
+```
+
+This simplified import pattern allows users to import all FEA functionality from a single location, making the code cleaner and more intuitive.
+
 ### Basic Usage
 ```python
 from volco import run_simulation
-from app.postprocessing.fea import analyze_voxel_matrix
+from volco_fea import analyze_voxel_matrix, Surface
 
 # Run VOLCO simulation
 output = run_simulation(
@@ -147,14 +155,29 @@ output = run_simulation(
     sim_config_path='examples/simulation_settings.json'
 )
 
-# Get voxel matrix and voxel size
-voxel_matrix = output.voxel_space.space
+# Get cropped voxel matrix and voxel size
+voxel_matrix = output.cropped_voxel_space
 voxel_size = output._simulation.voxel_size
+
+# Define boundary conditions using Simple Mode
+from app.postprocessing.fea.boundary import Surface
+
+# Calculate displacement as 1% of model height
+model_height = voxel_matrix.shape[2] * voxel_size
+displacement_magnitude = model_height * 0.01
+
+boundary_conditions = {
+    'constraints': {
+        Surface.MINUS_Z: "fix",  # Fix bottom surface
+        Surface.PLUS_Z: [None, None, -displacement_magnitude, None, None, None]  # Apply compression on top
+    }
+}
 
 # Run FEA analysis
 results = analyze_voxel_matrix(
     voxel_matrix=voxel_matrix,
     voxel_size=voxel_size,
+    boundary_conditions=boundary_conditions,
     visualization=True,
     result_type='von_mises',
     scale_factor=10.0  # Exaggerate deformation for visualization
@@ -165,27 +188,34 @@ print(f"Maximum displacement: {results['max_displacement']} mm")
 print(f"Maximum von Mises stress: {results['max_von_mises']} MPa")
 
 # Save visualization
-from app.postprocessing.fea.viz import export_visualization
-export_visualization(results['visualization'], "fea_results.html")
+export_visualization(results['visualization'], "Results_volco/fea/von_mises.html")
 ```
 
 ### Saving and Loading Results
 ```python
 # Save results
+# Define boundary conditions
+boundary_conditions = {
+    'constraints': {
+        Surface.MINUS_Z: "fix",  # Fix bottom surface
+        Surface.PLUS_Z: [None, None, -displacement_magnitude, None, None, None]  # Apply compression on top
+    }
+}
+
 results = analyze_voxel_matrix(
     voxel_matrix=voxel_matrix,
     voxel_size=voxel_size,
+    boundary_conditions=boundary_conditions,
     save_results=True,
     save_path='Results_volco/fea/my_analysis',
     save_format='pickle'
 )
 
 # Load results
-from app.postprocessing.fea import load_fea_results
+from volco_fea import load_fea_results, visualize_fea, export_visualization
 loaded_results = load_fea_results('Results_volco/fea/my_analysis.pkl')
 
 # Create visualization from loaded results
-from app.postprocessing.fea.viz import visualize_fea, export_visualization
 viz = visualize_fea(
     nodes=loaded_results['nodes'],
     elements=loaded_results['elements'],
@@ -197,7 +227,7 @@ viz = visualize_fea(
 )
 
 # Export the visualization to an HTML file
-export_visualization(viz, "visualization.html")
+export_visualization(viz, "Results_volco/fea/loaded_von_mises_with_undeformed.html")
 ```
 
 ### Custom Material Properties
@@ -208,18 +238,72 @@ material_properties = {
     'poisson_ratio': 0.35     # Typical for ABS
 }
 
+# Define boundary conditions
+boundary_conditions = {
+    'constraints': {
+        Surface.MINUS_Z: "fix",  # Fix bottom surface
+        Surface.PLUS_Z: [None, None, -displacement_magnitude, None, None, None]  # Apply compression on top
+    }
+}
+
 results = analyze_voxel_matrix(
     voxel_matrix=voxel_matrix,
     voxel_size=voxel_size,
-    material_properties=material_properties
+    material_properties=material_properties,
+    boundary_conditions=boundary_conditions
 )
 ```
 
 ### Custom Boundary Conditions
+
+#### Simple Mode
 ```python
-# Define custom boundary conditions
+from volco_fea import Surface
+
+# Define boundary conditions using Simple Mode
 boundary_conditions = {
-    'displacement_percentage': 2.0  # 2% displacement instead of default 1%
+    'constraints': {
+        Surface.MINUS_Z: "fix",  # Fix bottom surface
+        Surface.PLUS_Z: [None, None, -0.1, None, None, None]  # Apply 0.1mm compression on top
+    }
+}
+
+results = analyze_voxel_matrix(
+    voxel_matrix=voxel_matrix,
+    voxel_size=voxel_size,
+    boundary_conditions=boundary_conditions
+)
+```
+
+#### Expert Mode
+```python
+# Define custom boundary conditions using expert mode
+def custom_constraint_function(nodes, elements):
+    # Get model dimensions directly
+    z_coords = nodes[:, 2]
+    min_z = np.min(z_coords)
+    max_z = np.max(z_coords)
+    
+    # Calculate model height
+    model_height = max_z - min_z
+    
+    # Calculate displacement as 1% of model height
+    displacement_magnitude = model_height * 0.01
+    
+    return {
+        # Fix nodes on the bottom surface
+        i: [0, 0, 0, 0, 0, 0] for i in range(len(nodes))
+        if abs(nodes[i, 2] - min_z) < 1e-6
+    } | {
+        # Apply displacement to nodes on the top surface
+        i: [None, None, -displacement_magnitude, None, None, None] for i in range(len(nodes))
+        if abs(nodes[i, 2] - max_z) < 1e-6
+    }
+
+boundary_conditions = {
+    'constraints': {
+        "custom": custom_constraint_function
+    }
 }
 
 results = analyze_voxel_matrix(
@@ -249,6 +333,7 @@ results = analyze_voxel_matrix(
 
 ## 8. Module Dependencies
 
+- `volco_fea.py` → `app/postprocessing/fea/core.py`, `app/postprocessing/fea/viz.py`, `app/postprocessing/fea/boundary.py`, `app/postprocessing/fea/io.py` (simplified import interface)
 - `app/postprocessing/fea/__init__.py` → `app/postprocessing/fea/core.py`
 - `app/postprocessing/fea/core.py` → `app/postprocessing/fea/mesh.py`, `app/postprocessing/fea/solver.py`, `app/postprocessing/fea/boundary.py`, `app/postprocessing/fea/viz.py`, `app/postprocessing/fea/io.py`
 - `app/postprocessing/fea/mesh.py` → `scipy.ndimage` (for connected component labeling)
@@ -264,9 +349,9 @@ results = analyze_voxel_matrix(
 3. Add new material parameters to the `material_properties` dictionary
 
 ### Supporting Additional Boundary Conditions
-1. Create new helper functions in `boundary.py`
-2. Update `apply_default_boundary_conditions()` or create a new boundary condition application function
-3. Add new parameters to the `boundary_conditions` dictionary
+1. Add new surface identifiers to the `Surface` enumeration in `boundary.py`
+2. Extend the `apply_boundary_conditions()` function to handle new constraint types
+3. Add new functional utilities for expert users
 
 ### Adding New Result Types
 1. Update `calculate_stresses_and_strains()` in `solver.py` to compute additional results

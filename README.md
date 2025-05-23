@@ -161,7 +161,18 @@ VOLCO uses two configuration files: simulation settings and printer settings. Be
 VOLCO includes a Finite Element Analysis (FEA) module that enables structural analysis of the simulated 3D printed parts. With just one line of code, you can analyze the structural behavior of your VOLCO simulation results:
 
 ```python
-results = analyze_voxel_matrix(voxel_matrix, voxel_size, **analysis_parameters)
+from volco_fea import analyze_voxel_matrix, Surface
+
+# Define boundary conditions
+boundary_conditions = {
+    'constraints': {
+        Surface.MINUS_Z: "fix",  # Fix bottom surface
+        Surface.PLUS_Z: [None, None, -0.1, None, None, None]  # Apply displacement on top
+    }
+}
+
+# Run analysis
+results = analyze_voxel_matrix(voxel_matrix, voxel_size, boundary_conditions=boundary_conditions)
 ```
 
 For detailed documentation and examples, see [app/postprocessing/fea/README.md](app/postprocessing/fea/README.md).

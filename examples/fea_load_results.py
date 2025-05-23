@@ -9,8 +9,7 @@ This script shows how to:
 
 import os
 import numpy as np
-from app.postprocessing.fea import load_fea_results
-from app.postprocessing.fea.viz import visualize_fea, export_visualization
+from volco_fea import load_fea_results, visualize_fea, export_visualization
 
 
 def main():
@@ -69,7 +68,7 @@ def main():
     print("Saving visualization...")
     export_visualization(
         viz,
-        "Results_volco/fea/loaded_results_visualization.html"
+        "Results_volco/fea/loaded_von_mises.html"
     )
     
     # Create a displacement visualization
@@ -100,13 +99,13 @@ def main():
     # Save the dual visualization
     export_visualization(
         dual_viz,
-        "Results_volco/fea/loaded_results_dual_view.html"
+        "Results_volco/fea/loaded_von_mises_with_undeformed.html"
     )
     
     # Save the displacement visualization
     export_visualization(
         disp_viz,
-        "Results_volco/fea/loaded_results_displacement.html"
+        "Results_volco/fea/loaded_displacement.html"
     )
     
     # Create a comparison plot showing stress distribution using Plotly
@@ -133,9 +132,9 @@ def main():
     
     print("\nExample complete. Visualizations saved to Results_volco/fea/")
     print("Files generated:")
-    print("  - Results_volco/fea/loaded_results_visualization.html")
-    print("  - Results_volco/fea/loaded_results_displacement.html")
-    print("  - Results_volco/fea/loaded_results_dual_view.html")
+    print("  - Results_volco/fea/loaded_von_mises.html")
+    print("  - Results_volco/fea/loaded_displacement.html")
+    print("  - Results_volco/fea/loaded_von_mises_with_undeformed.html")
     print("  - Results_volco/fea/stress_distribution.html")
 
 

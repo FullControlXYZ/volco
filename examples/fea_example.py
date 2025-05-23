@@ -10,8 +10,7 @@ This script shows how to:
 import os
 import numpy as np
 from volco import run_simulation
-from app.postprocessing.fea import analyze_voxel_matrix
-from app.postprocessing.fea.viz import export_visualization, visualize_fea
+from volco_fea import analyze_voxel_matrix, export_visualization, visualize_fea, Surface
 
 
 def main():
@@ -46,9 +45,18 @@ def main():
         'poisson_ratio': 0.3      # Typical for PLA
     }
     
-    # Define custom boundary conditions (optional)
+    # Get model dimensions - use the z-dimension of the voxel matrix
+    model_height = voxel_matrix.shape[2] * voxel_size
+    
+    # Calculate displacement as 1% of model height
+    displacement_magnitude = model_height * 0.01
+    
+    # Define boundary conditions using the new Simple Mode format
     boundary_conditions = {
-        'displacement_percentage': 1.0  # 1% displacement
+        'constraints': {
+            Surface.MINUS_Z: "fix",  # Fix bottom surface
+            Surface.PLUS_Z: [None, None, -displacement_magnitude, None, None, None]  # Apply 1% compression on top
+        }
     }
     
     # Run the analysis

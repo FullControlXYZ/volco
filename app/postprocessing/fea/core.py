@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional, Tuple, Union
 
 from .mesh import generate_mesh, check_continuity
 from .solver import solve_static_problem
-from .boundary import apply_default_boundary_conditions
+from .boundary import apply_boundary_conditions, Surface
 from .viz import visualize_fea
 from .io import save_results
 
@@ -72,11 +72,18 @@ def analyze_voxel_matrix(
     # Generate FE mesh from voxel matrix
     nodes, elements = generate_mesh(voxel_matrix, voxel_size)
     
-    # Apply boundary conditions (default or custom)
+    # Apply boundary conditions (must be supplied)
     if boundary_conditions is None:
-        dofs, forces = apply_default_boundary_conditions(nodes, voxel_matrix)
+        raise ValueError("Boundary conditions must be supplied. "
+                        "Please use the format: {'constraints': {Surface.MINUS_Z: 'fix', ...}}")
+    
+    # Check if constraints are specified in the new format
+    if 'constraints' in boundary_conditions:
+        constraints = boundary_conditions.get('constraints', {})
+        dofs, forces = apply_boundary_conditions(nodes, elements, constraints)
     else:
-        dofs, forces = apply_default_boundary_conditions(nodes, voxel_matrix, **boundary_conditions)
+        raise ValueError("Boundary conditions must be specified using the 'constraints' key. "
+                        "Please use the format: {'constraints': {Surface.MINUS_Z: 'fix', ...}}")
     
     # Solve the static problem
     displacements, stresses, strains, von_mises = solve_static_problem(
